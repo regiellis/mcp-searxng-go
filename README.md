@@ -1,7 +1,7 @@
 # mcp-searxng-go
 
 [![Go Version](https://img.shields.io/badge/Go-1.25-blue.svg)](https://golang.org/)
-[![Go Modules](https://img.shields.io/github/mod/v/mcp-searxng-go)](https://github.com/regiellis/mcp-searxng-go/releases)
+[![Release](https://img.shields.io/github/v/release/regiellis/mcp-searxng-go)](https://github.com/regiellis/mcp-searxng-go/releases)
 
 `mcp-searxng-go` is a production-oriented **Model Context Protocol (MCP) server** written in Go 1.25. It acts as a dedicated gateway, exposing several focused search and reading tools backed by a configured SearXNG instance.
 
