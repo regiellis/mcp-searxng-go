@@ -1,0 +1,7 @@
+tasks:
+  build:
+    cmds:
+      - go build -o build/mcp-server ./cmd/server
+  run:
+    cmds:
+      - go run ./cmd/server
