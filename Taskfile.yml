@@ -1,7 +1,116 @@
+version: "3"
+
+vars:
+  ROOT_DIR: "{{.TASKFILE_DIR}}"
+  BINARY_NAME: mcp-server
+  BUILD_DIR: "{{.ROOT_DIR}}/build"
+  CACHE_DIR: "{{.ROOT_DIR}}/.cache"
+  GO_BUILD_CACHE: "{{.CACHE_DIR}}/go-build"
+  GO_MOD_CACHE: "{{.CACHE_DIR}}/go-mod"
+  MAIN_PACKAGE: ./cmd/server
+  GOFLAGS_REPRO: -trimpath -buildvcs=false
+
 tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
   build:
+    desc: Build a reproducible server binary into build/
+    env:
+      GOCACHE: "{{.GO_BUILD_CACHE}}"
+      GOMODCACHE: "{{.GO_MOD_CACHE}}"
+    sources:
+      - cmd/**/*.go
+      - internal/**/*.go
+      - pkg/**/*.go
+      - go.mod
+    generates:
+      - "{{.BUILD_DIR}}/{{.BINARY_NAME}}"
     cmds:
-      - go build -o build/mcp-server ./cmd/server
+      - mkdir -p {{.BUILD_DIR}} {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - go build {{.GOFLAGS_REPRO}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+
   run:
+    desc: Run the server directly for a quick development loop
+    env:
+      GOCACHE: "{{.GO_BUILD_CACHE}}"
+      GOMODCACHE: "{{.GO_MOD_CACHE}}"
     cmds:
-      - go run ./cmd/server
+      - mkdir -p {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - go run {{.MAIN_PACKAGE}}
+
+  test:
+    desc: Run the standard Go test suite
+    env:
+      GOCACHE: "{{.GO_BUILD_CACHE}}"
+      GOMODCACHE: "{{.GO_MOD_CACHE}}"
+    cmds:
+      - mkdir -p {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - go test ./...
+
+  tidy:
+    desc: Keep module dependencies clean
+    env:
+      GOCACHE: "{{.GO_BUILD_CACHE}}"
+      GOMODCACHE: "{{.GO_MOD_CACHE}}"
+    cmds:
+      - mkdir -p {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - go mod tidy
+
+  lint:
+    desc: Run basic static checks with go vet
+    env:
+      GOCACHE: "{{.GO_BUILD_CACHE}}"
+      GOMODCACHE: "{{.GO_MOD_CACHE}}"
+    cmds:
+      - mkdir -p {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - go vet ./...
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+      - rm -rf {{.CACHE_DIR}}
+
+  vuln:
+    desc: Run dependency and code vulnerability checks with govulncheck
+    env:
+      GOCACHE: "{{.GO_BUILD_CACHE}}"
+      GOMODCACHE: "{{.GO_MOD_CACHE}}"
+    preconditions:
+      - sh: command -v govulncheck >/dev/null 2>&1
+        msg: govulncheck is required for task vuln
+    cmds:
+      - mkdir -p {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - govulncheck ./...
+
+  sbom:
+    desc: Generate an SBOM for the built binary with syft
+    deps: [build]
+    preconditions:
+      - sh: command -v syft >/dev/null 2>&1
+        msg: syft is required for task sbom
+    cmds:
+      - syft packages {{.BUILD_DIR}}/{{.BINARY_NAME}}
+
+  release:
+    desc: Build a release binary with reproducible flags and stripped symbols
+    env:
+      GOCACHE: "{{.GO_BUILD_CACHE}}"
+      GOMODCACHE: "{{.GO_MOD_CACHE}}"
+    cmds:
+      - mkdir -p {{.BUILD_DIR}} {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - go build {{.GOFLAGS_REPRO}} -ldflags="-s -w -buildid=" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+
+  docker:
+    desc: Build a minimal distroless container image
+    deps: [release]
+    preconditions:
+      - sh: command -v docker >/dev/null 2>&1
+        msg: docker is required for task docker
+      - sh: test -f {{.ROOT_DIR}}/Dockerfile
+        msg: Dockerfile is required for task docker
+    cmds:
+      - docker build -t {{.BINARY_NAME}}:latest .
