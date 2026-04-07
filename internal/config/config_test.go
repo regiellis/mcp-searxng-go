@@ -23,6 +23,7 @@ fetch:
 	}
 
 	t.Setenv("MCP_SERVER_MODE", "http")
+	t.Setenv("MCP_SERVER_PUBLIC_BASE_URL", "http://192.168.1.50:8081")
 	t.Setenv("MCP_FETCH_MAX_BODY_SIZE", "3MB")
 
 	cfg, err := Load(path)
@@ -35,6 +36,9 @@ fetch:
 	}
 	if cfg.Fetch.MaxBodySize != ByteSize(3<<20) {
 		t.Fatalf("expected parsed byte size, got %d", cfg.Fetch.MaxBodySize)
+	}
+	if cfg.Server.PublicBaseURL != "http://192.168.1.50:8081" {
+		t.Fatalf("expected public base url override, got %q", cfg.Server.PublicBaseURL)
 	}
 	if cfg.Cache.TTLSearch != 2*time.Minute {
 		t.Fatalf("expected default ttl_search, got %s", cfg.Cache.TTLSearch)

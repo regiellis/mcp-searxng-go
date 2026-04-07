@@ -8,6 +8,7 @@ searxng:
 server:
   mode: "http"
   address: "0.0.0.0:8081"
+  public_base_url: ""
   read_timeout: 15s
   write_timeout: 15s
   log_level: "info"
@@ -28,6 +29,6 @@ cache:
   max_entries: 256
 
 security:
-  block_private_networks: true
+  block_private_networks: false
   allow_domains: []
   deny_domains: []

@@ -36,6 +36,12 @@ func TestSearchClientRespectsLimit(t *testing.T) {
 		if got := r.URL.Query().Get("categories"); got != "images" {
 			t.Fatalf("expected categories=images, got %q", got)
 		}
+		if got := r.URL.Query().Get("engines"); got != "google,duckduckgo" {
+			t.Fatalf("expected engines list, got %q", got)
+		}
+		if got := r.URL.Query().Get("q"); got != "site:go.dev golang" {
+			t.Fatalf("expected site-filtered query, got %q", got)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"query": "golang",
 			"results": []map[string]any{
@@ -57,7 +63,13 @@ func TestSearchClientRespectsLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := client.Search(context.Background(), types.SearchRequest{Query: "golang", Category: "images", Limit: 20})
+	resp, err := client.Search(context.Background(), types.SearchRequest{
+		Query:    "golang",
+		Category: "images",
+		Engines:  []string{"google", "duckduckgo"},
+		Site:     "go.dev",
+		Limit:    20,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,6 +81,12 @@ func TestSearchClientRespectsLimit(t *testing.T) {
 	}
 	if resp.Category != "images" {
 		t.Fatalf("expected image category, got %q", resp.Category)
+	}
+	if len(resp.Engines) != 2 {
+		t.Fatalf("expected engines to round-trip, got %#v", resp.Engines)
+	}
+	if resp.Site != "go.dev" {
+		t.Fatalf("expected site to round-trip, got %q", resp.Site)
 	}
 }
 

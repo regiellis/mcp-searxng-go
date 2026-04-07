@@ -76,10 +76,28 @@ func (s *Server) HTTPHandler() http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"name":      "mcp-searxng-go",
-			"transport": "http",
-			"mcp_path":  "/mcp",
-			"healthz":   "/healthz",
+			"name":            "mcp-searxng-go",
+			"transport":       "http",
+			"mcp_path":        "/mcp",
+			"healthz":         "/healthz",
+			"tools":           "/tools",
+			"debug":           "/debug",
+			"public_base_url": s.cfg.Server.PublicBaseURL,
+		})
+	})
+	mux.HandleFunc("/tools", func(w http.ResponseWriter, r *http.Request) {
+		applyCORSHeaders(w)
+		writeJSON(w, http.StatusOK, map[string]any{"tools": toolDefinitions()})
+	})
+	mux.HandleFunc("/debug", func(w http.ResponseWriter, r *http.Request) {
+		applyCORSHeaders(w)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"name":            "mcp-searxng-go",
+			"transport":       "http",
+			"mcp_path":        "/mcp",
+			"healthz":         "/healthz",
+			"tools":           toolDefinitions(),
+			"public_base_url": s.cfg.Server.PublicBaseURL,
 		})
 	})
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -91,10 +109,12 @@ func (s *Server) HTTPHandler() http.Handler {
 		applyCORSHeaders(w)
 		if r.Method == http.MethodGet {
 			writeJSON(w, http.StatusOK, map[string]any{
-				"name":      "mcp-searxng-go",
-				"transport": "http",
-				"message":   "POST JSON-RPC requests to this endpoint",
-				"methods":   []string{"initialize", "tools/list", "tools/call"},
+				"name":            "mcp-searxng-go",
+				"transport":       "http",
+				"message":         "POST JSON-RPC requests to this endpoint",
+				"methods":         []string{"initialize", "tools/list", "tools/call"},
+				"tools_url":       "/tools",
+				"public_base_url": s.cfg.Server.PublicBaseURL,
 			})
 			return
 		}
@@ -199,6 +219,64 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 			return responseError(req.ID, errInvalidParams, err.Error(), nil)
 		}
 		return s.toolResult(req.ID, result)
+	case "news_search":
+		var input types.SearchRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid news_search arguments", map[string]any{"detail": err.Error()})
+		}
+		result, err := s.runSearch(ctx, "news_search", "news", input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "search_with_engines":
+		var input types.SearchRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid search_with_engines arguments", map[string]any{"detail": err.Error()})
+		}
+		if len(input.Engines) == 0 {
+			return responseError(req.ID, errInvalidParams, "engines is required", nil)
+		}
+		category := firstNonEmpty(input.Category, "general")
+		result, err := s.runSearch(ctx, "search_with_engines", category, input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "search_with_site_filter":
+		var input types.SearchRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid search_with_site_filter arguments", map[string]any{"detail": err.Error()})
+		}
+		if strings.TrimSpace(input.Site) == "" {
+			return responseError(req.ID, errInvalidParams, "site is required", nil)
+		}
+		category := firstNonEmpty(input.Category, "general")
+		result, err := s.runSearch(ctx, "search_with_site_filter", category, input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "multi_search":
+		var input types.MultiSearchRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid multi_search arguments", map[string]any{"detail": err.Error()})
+		}
+		result, err := s.runMultiSearch(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "search_and_read":
+		var input types.SearchAndReadRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid search_and_read arguments", map[string]any{"detail": err.Error()})
+		}
+		result, err := s.runSearchAndRead(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
 	case "url_read":
 		var input types.URLReadRequest
 		if err := json.Unmarshal(params.Arguments, &input); err != nil {
@@ -215,6 +293,9 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 }
 
 func (s *Server) runSearch(ctx context.Context, toolName, category string, req types.SearchRequest) (types.SearchResponse, error) {
+	if !validCategory(category) {
+		return types.SearchResponse{}, fmt.Errorf("unsupported category %q", category)
+	}
 	req.Category = category
 	keyBytes, _ := json.Marshal(req)
 	key := string(keyBytes)
@@ -236,6 +317,86 @@ func (s *Server) runSearch(ctx context.Context, toolName, category string, req t
 	}
 	s.logger.Info("tool end", "tool", toolName, "category", category, "count", resp.ResultCount)
 	return resp, nil
+}
+
+func (s *Server) runMultiSearch(ctx context.Context, req types.MultiSearchRequest) (types.MultiSearchResponse, error) {
+	if strings.TrimSpace(req.Query) == "" {
+		return types.MultiSearchResponse{}, fmt.Errorf("query is required")
+	}
+	categories := req.Categories
+	if len(categories) == 0 {
+		categories = []string{"general", "images", "videos", "news"}
+	}
+
+	results := make(map[string]types.SearchResponse, len(categories))
+	seen := make(map[string]struct{}, len(categories))
+	ordered := make([]string, 0, len(categories))
+	for _, category := range categories {
+		category = strings.TrimSpace(category)
+		if !validCategory(category) {
+			return types.MultiSearchResponse{}, fmt.Errorf("unsupported category %q", category)
+		}
+		if _, ok := seen[category]; ok {
+			continue
+		}
+		seen[category] = struct{}{}
+		ordered = append(ordered, category)
+		resp, err := s.runSearch(ctx, "multi_search", category, types.SearchRequest{
+			Query:     req.Query,
+			Category:  category,
+			Language:  req.Language,
+			TimeRange: req.TimeRange,
+			Page:      req.Page,
+			Limit:     req.Limit,
+		})
+		if err != nil {
+			return types.MultiSearchResponse{}, err
+		}
+		results[category] = resp
+	}
+	return types.MultiSearchResponse{
+		Query:      strings.TrimSpace(req.Query),
+		Categories: ordered,
+		Results:    results,
+	}, nil
+}
+
+func (s *Server) runSearchAndRead(ctx context.Context, req types.SearchAndReadRequest) (types.SearchAndReadResponse, error) {
+	category := firstNonEmpty(req.Category, "general")
+	searchResp, err := s.runSearch(ctx, "search_and_read", category, types.SearchRequest{
+		Query:     req.Query,
+		Category:  category,
+		Engines:   req.Engines,
+		Site:      req.Site,
+		Language:  req.Language,
+		TimeRange: req.TimeRange,
+		Page:      req.Page,
+		Limit:     req.Limit,
+	})
+	if err != nil {
+		return types.SearchAndReadResponse{}, err
+	}
+	index := req.ResultIndex
+	if index < 0 {
+		return types.SearchAndReadResponse{}, fmt.Errorf("result_index must be zero or positive")
+	}
+	if len(searchResp.Results) == 0 {
+		return types.SearchAndReadResponse{Search: searchResp, SelectedIndex: index}, nil
+	}
+	if index >= len(searchResp.Results) {
+		return types.SearchAndReadResponse{}, fmt.Errorf("result_index %d out of range", index)
+	}
+	selected := searchResp.Results[index]
+	readResp, err := s.runRead(ctx, types.URLReadRequest{URL: selected.URL})
+	if err != nil {
+		return types.SearchAndReadResponse{}, err
+	}
+	return types.SearchAndReadResponse{
+		Search:        searchResp,
+		SelectedIndex: index,
+		Selected:      &selected,
+		Read:          &readResp,
+	}, nil
 }
 
 func (s *Server) runRead(ctx context.Context, req types.URLReadRequest) (types.URLReadResponse, error) {
@@ -348,4 +509,23 @@ func applyCORSHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Expose-Headers", "Content-Type")
 	w.Header().Set("Access-Control-Allow-Private-Network", "true")
 	w.Header().Set("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
+}
+
+func validCategory(category string) bool {
+	switch strings.TrimSpace(category) {
+	case "general", "images", "videos", "news":
+		return true
+	default:
+		return false
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

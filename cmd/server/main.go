@@ -111,10 +111,17 @@ func logStartupStatus(logger *slog.Logger, cfg config.Config, searchClient *sear
 	if len(baseURLs) == 0 {
 		baseURLs = append(baseURLs, fmt.Sprintf("http://%s:%s", host, port))
 	}
+	preferredBaseURL := strings.TrimSpace(cfg.Server.PublicBaseURL)
+	if preferredBaseURL == "" && len(baseURLs) > 0 {
+		preferredBaseURL = baseURLs[0]
+	}
 
 	logger.Info("http endpoints",
 		"bind", cfg.Server.Address,
 		"local_ips", ips,
+		"preferred_base_url", preferredBaseURL,
+		"preferred_mcp_url", strings.TrimRight(preferredBaseURL, "/")+"/mcp",
+		"preferred_tools_url", strings.TrimRight(preferredBaseURL, "/")+"/tools",
 		"mcp_urls", addPath(baseURLs, "/mcp"),
 		"healthz_urls", addPath(baseURLs, "/healthz"),
 	)

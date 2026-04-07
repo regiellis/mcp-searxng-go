@@ -74,11 +74,14 @@ func (c *Client) Search(ctx context.Context, req types.SearchRequest) (types.Sea
 
 	relative := &url.URL{Path: "/search"}
 	values := relative.Query()
-	values.Set("q", req.Query)
+	values.Set("q", buildQuery(req.Query, req.Site))
 	values.Set("format", "json")
 	values.Set("pageno", strconv.Itoa(page))
 	if category := strings.TrimSpace(req.Category); category != "" {
 		values.Set("categories", category)
+	}
+	if len(req.Engines) > 0 {
+		values.Set("engines", strings.Join(cleanList(req.Engines), ","))
 	}
 	if language := choose(req.Language, c.defaultLanguage); language != "" {
 		values.Set("language", language)
@@ -110,6 +113,8 @@ func (c *Client) Search(ctx context.Context, req types.SearchRequest) (types.Sea
 	return types.SearchResponse{
 		Query:       strings.TrimSpace(req.Query),
 		Category:    strings.TrimSpace(req.Category),
+		Engines:     cleanList(req.Engines),
+		Site:        strings.TrimSpace(req.Site),
 		Page:        page,
 		Limit:       limit,
 		ResultCount: len(results),
@@ -151,4 +156,30 @@ func choose(value, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func buildQuery(query, site string) string {
+	query = strings.TrimSpace(query)
+	site = strings.TrimSpace(site)
+	if site == "" {
+		return query
+	}
+	return fmt.Sprintf("site:%s %s", site, query)
+}
+
+func cleanList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

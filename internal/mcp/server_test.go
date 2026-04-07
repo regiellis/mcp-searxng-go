@@ -52,7 +52,7 @@ func TestHTTPEndToEndSearch(t *testing.T) {
 	}
 }
 
-func TestToolsListIncludesImageAndVideoSearch(t *testing.T) {
+func TestToolsListIncludesNewSearchTools(t *testing.T) {
 	t.Parallel()
 
 	server := newTestServer(t, "https://example.com")
@@ -69,6 +69,68 @@ func TestToolsListIncludesImageAndVideoSearch(t *testing.T) {
 	}
 	if !bytes.Contains(payload, []byte(`"video_search"`)) {
 		t.Fatalf("expected video_search in tools/list response: %s", string(payload))
+	}
+	if !bytes.Contains(payload, []byte(`"news_search"`)) {
+		t.Fatalf("expected news_search in tools/list response: %s", string(payload))
+	}
+	if !bytes.Contains(payload, []byte(`"search_with_engines"`)) {
+		t.Fatalf("expected search_with_engines in tools/list response: %s", string(payload))
+	}
+	if !bytes.Contains(payload, []byte(`"search_with_site_filter"`)) {
+		t.Fatalf("expected search_with_site_filter in tools/list response: %s", string(payload))
+	}
+	if !bytes.Contains(payload, []byte(`"multi_search"`)) {
+		t.Fatalf("expected multi_search in tools/list response: %s", string(payload))
+	}
+	if !bytes.Contains(payload, []byte(`"search_and_read"`)) {
+		t.Fatalf("expected search_and_read in tools/list response: %s", string(payload))
+	}
+}
+
+func TestSearchAndReadReturnsSelectedResult(t *testing.T) {
+	t.Parallel()
+
+	readURL := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(`<html><head><title>Go</title></head><body>Go docs</body></html>`))
+	}))
+	defer readURL.Close()
+
+	searx := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"query": "golang",
+			"results": []map[string]any{
+				{"title": "Go", "url": readURL.URL, "content": "The Go programming language"},
+			},
+		})
+	}))
+	defer searx.Close()
+
+	server := newTestServer(t, searx.URL)
+	result, err := server.runSearchAndRead(context.Background(), types.SearchAndReadRequest{
+		Query: "golang",
+	})
+	if err != nil {
+		t.Fatalf("search_and_read: %v", err)
+	}
+	if result.Selected == nil || result.Selected.URL != readURL.URL {
+		t.Fatalf("expected selected result URL %q, got %#v", readURL.URL, result.Selected)
+	}
+	if result.Read == nil || result.Read.Title != "Go" {
+		t.Fatalf("expected read result title Go, got %#v", result.Read)
+	}
+}
+
+func TestRunMultiSearchRejectsInvalidCategory(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer(t, "https://example.com")
+	_, err := server.runMultiSearch(context.Background(), types.MultiSearchRequest{
+		Query:      "golang",
+		Categories: []string{"general", "bogus"},
+	})
+	if err == nil {
+		t.Fatal("expected invalid category error")
 	}
 }
 

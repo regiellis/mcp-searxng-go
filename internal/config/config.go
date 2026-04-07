@@ -34,11 +34,12 @@ type SearXNGConfig struct {
 
 // ServerConfig contains transport configuration.
 type ServerConfig struct {
-	Mode         string        `yaml:"mode"`
-	Address      string        `yaml:"address"`
-	ReadTimeout  time.Duration `yaml:"read_timeout"`
-	WriteTimeout time.Duration `yaml:"write_timeout"`
-	LogLevel     string        `yaml:"log_level"`
+	Mode          string        `yaml:"mode"`
+	Address       string        `yaml:"address"`
+	PublicBaseURL string        `yaml:"public_base_url"`
+	ReadTimeout   time.Duration `yaml:"read_timeout"`
+	WriteTimeout  time.Duration `yaml:"write_timeout"`
+	LogLevel      string        `yaml:"log_level"`
 }
 
 // FetchConfig contains URL fetch limits.
@@ -76,11 +77,12 @@ func Default() Config {
 			MaxLimit:         10,
 		},
 		Server: ServerConfig{
-			Mode:         "http",
-			Address:      "0.0.0.0:8081",
-			ReadTimeout:  15 * time.Second,
-			WriteTimeout: 15 * time.Second,
-			LogLevel:     "info",
+			Mode:          "http",
+			Address:       "0.0.0.0:8081",
+			PublicBaseURL: "",
+			ReadTimeout:   15 * time.Second,
+			WriteTimeout:  15 * time.Second,
+			LogLevel:      "info",
 		},
 		Fetch: FetchConfig{
 			Timeout:        15 * time.Second,
@@ -158,6 +160,7 @@ func applyEnv(cfg *Config) {
 
 	setString("MCP_SERVER_MODE", &cfg.Server.Mode)
 	setString("MCP_SERVER_ADDRESS", &cfg.Server.Address)
+	setString("MCP_SERVER_PUBLIC_BASE_URL", &cfg.Server.PublicBaseURL)
 	setDuration("MCP_SERVER_READ_TIMEOUT", &cfg.Server.ReadTimeout)
 	setDuration("MCP_SERVER_WRITE_TIMEOUT", &cfg.Server.WriteTimeout)
 	setString("MCP_LOG_LEVEL", &cfg.Server.LogLevel)
