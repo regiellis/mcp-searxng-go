@@ -1,4 +1,8 @@
 bin/
 build/
+.cache/
+.codex
+.codex/
+AGENTS.md
 *.log
 .env
