@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"mcp-searxng-go/internal/config"
-	"mcp-searxng-go/pkg/client"
-	"mcp-searxng-go/pkg/types"
+	"github.com/regiellis/mcp-searxng-go/internal/config"
+	"github.com/regiellis/mcp-searxng-go/pkg/client"
+	"github.com/regiellis/mcp-searxng-go/pkg/types"
 )
 
 // Reader fetches and extracts public text content.
@@ -54,7 +54,7 @@ func (r *Reader) Read(ctx context.Context, req types.URLReadRequest) (types.URLR
 	if err != nil {
 		return types.URLReadResponse{}, err
 	}
-	httpReq.Header.Set("User-Agent", "mcp-searxng-go/1.0")
+	httpReq.Header.Set("User-Agent", "github.com/regiellis/mcp-searxng-go/1.0")
 	httpReq.Header.Set("Accept", "text/html, text/plain, application/json, application/xml;q=0.9, text/*;q=0.8")
 
 	resp, err := r.client.Do(httpReq)

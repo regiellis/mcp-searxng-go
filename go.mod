@@ -1,4 +1,4 @@
-module mcp-searxng-go
+module github.com/regiellis/mcp-searxng-go
 
 go 1.25.0
 

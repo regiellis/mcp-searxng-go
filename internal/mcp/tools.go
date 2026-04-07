@@ -1,6 +1,6 @@
 package mcp
 
-import "mcp-searxng-go/pkg/types"
+import "github.com/regiellis/mcp-searxng-go/pkg/types"
 
 func toolDefinitions() []types.ToolDefinition {
 	return []types.ToolDefinition{

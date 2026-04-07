@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"mcp-searxng-go/internal/security"
+	"github.com/regiellis/mcp-searxng-go/internal/security"
 )
 
 // URLValidator validates schemes and SSRF-sensitive targets.

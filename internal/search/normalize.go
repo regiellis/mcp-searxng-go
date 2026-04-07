@@ -3,7 +3,7 @@ package search
 import (
 	"strings"
 
-	"mcp-searxng-go/pkg/types"
+	"github.com/regiellis/mcp-searxng-go/pkg/types"
 )
 
 type searxResult struct {

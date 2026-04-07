@@ -7,7 +7,7 @@ import (
 	"net"
 	"strings"
 
-	"mcp-searxng-go/pkg/client"
+	"github.com/regiellis/mcp-searxng-go/pkg/client"
 )
 
 // NetworkGuard enforces SSRF-related address policy.

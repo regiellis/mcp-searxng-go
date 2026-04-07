@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"mcp-searxng-go/internal/config"
-	"mcp-searxng-go/pkg/client"
-	"mcp-searxng-go/pkg/types"
+	"github.com/regiellis/mcp-searxng-go/internal/config"
+	"github.com/regiellis/mcp-searxng-go/pkg/client"
+	"github.com/regiellis/mcp-searxng-go/pkg/types"
 )
 
 type searxResponse struct {
@@ -95,7 +95,7 @@ func (c *Client) Search(ctx context.Context, req types.SearchRequest) (types.Sea
 	if err != nil {
 		return types.SearchResponse{}, err
 	}
-	httpReq.Header.Set("User-Agent", "mcp-searxng-go/1.0")
+	httpReq.Header.Set("User-Agent", "github.com/regiellis/mcp-searxng-go/1.0")
 	httpReq.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(httpReq)
@@ -135,7 +135,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "mcp-searxng-go/1.0")
+	req.Header.Set("User-Agent", "github.com/regiellis/mcp-searxng-go/1.0")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)

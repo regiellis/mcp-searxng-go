@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"strings"
 
-	"mcp-searxng-go/internal/cache"
-	"mcp-searxng-go/internal/config"
-	"mcp-searxng-go/internal/fetch"
-	"mcp-searxng-go/internal/search"
-	"mcp-searxng-go/pkg/types"
+	"github.com/regiellis/mcp-searxng-go/internal/cache"
+	"github.com/regiellis/mcp-searxng-go/internal/config"
+	"github.com/regiellis/mcp-searxng-go/internal/fetch"
+	"github.com/regiellis/mcp-searxng-go/internal/search"
+	"github.com/regiellis/mcp-searxng-go/pkg/types"
 )
 
 // Server handles stdio and HTTP MCP requests.

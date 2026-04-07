@@ -9,8 +9,8 @@ import (
 
 	"log/slog"
 
-	"mcp-searxng-go/internal/config"
-	"mcp-searxng-go/pkg/types"
+	"github.com/regiellis/mcp-searxng-go/internal/config"
+	"github.com/regiellis/mcp-searxng-go/pkg/types"
 )
 
 func TestNormalizeResultsFiltersInvalidItems(t *testing.T) {

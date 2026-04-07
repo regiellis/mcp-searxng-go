@@ -1,6 +1,6 @@
 package mcp
 
-import "mcp-searxng-go/pkg/types"
+import "github.com/regiellis/mcp-searxng-go/pkg/types"
 
 const (
 	errParse          = -32700
