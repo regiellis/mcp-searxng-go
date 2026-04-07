@@ -174,7 +174,27 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 		if err := json.Unmarshal(params.Arguments, &input); err != nil {
 			return responseError(req.ID, errInvalidParams, "invalid web_search arguments", map[string]any{"detail": err.Error()})
 		}
-		result, err := s.runSearch(ctx, input)
+		result, err := s.runSearch(ctx, "web_search", "general", input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "image_search":
+		var input types.SearchRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid image_search arguments", map[string]any{"detail": err.Error()})
+		}
+		result, err := s.runSearch(ctx, "image_search", "images", input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "video_search":
+		var input types.SearchRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid video_search arguments", map[string]any{"detail": err.Error()})
+		}
+		result, err := s.runSearch(ctx, "video_search", "videos", input)
 		if err != nil {
 			return responseError(req.ID, errInvalidParams, err.Error(), nil)
 		}
@@ -194,26 +214,27 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 	}
 }
 
-func (s *Server) runSearch(ctx context.Context, req types.SearchRequest) (types.SearchResponse, error) {
+func (s *Server) runSearch(ctx context.Context, toolName, category string, req types.SearchRequest) (types.SearchResponse, error) {
+	req.Category = category
 	keyBytes, _ := json.Marshal(req)
 	key := string(keyBytes)
 	if s.cfg.Cache.Enabled {
 		if cached, ok := s.searchCache.Get(key); ok {
 			cached.Cached = true
-			s.logger.Info("cache hit", "tool", "web_search")
+			s.logger.Info("cache hit", "tool", toolName, "category", category)
 			return cached, nil
 		}
 	}
-	s.logger.Info("tool start", "tool", "web_search", "query", req.Query)
+	s.logger.Info("tool start", "tool", toolName, "category", category, "query", req.Query)
 	resp, err := s.search.Search(ctx, req)
 	if err != nil {
-		s.logger.Error("tool failure", "tool", "web_search", "error", err)
+		s.logger.Error("tool failure", "tool", toolName, "category", category, "error", err)
 		return types.SearchResponse{}, err
 	}
 	if s.cfg.Cache.Enabled {
 		s.searchCache.Set(key, resp, s.cfg.Cache.TTLSearch)
 	}
-	s.logger.Info("tool end", "tool", "web_search", "count", resp.ResultCount)
+	s.logger.Info("tool end", "tool", toolName, "category", category, "count", resp.ResultCount)
 	return resp, nil
 }
 

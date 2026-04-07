@@ -77,6 +77,9 @@ func (c *Client) Search(ctx context.Context, req types.SearchRequest) (types.Sea
 	values.Set("q", req.Query)
 	values.Set("format", "json")
 	values.Set("pageno", strconv.Itoa(page))
+	if category := strings.TrimSpace(req.Category); category != "" {
+		values.Set("categories", category)
+	}
 	if language := choose(req.Language, c.defaultLanguage); language != "" {
 		values.Set("language", language)
 	}
@@ -106,6 +109,7 @@ func (c *Client) Search(ctx context.Context, req types.SearchRequest) (types.Sea
 	results := normalizeResults(decoded.Results, limit)
 	return types.SearchResponse{
 		Query:       strings.TrimSpace(req.Query),
+		Category:    strings.TrimSpace(req.Category),
 		Page:        page,
 		Limit:       limit,
 		ResultCount: len(results),

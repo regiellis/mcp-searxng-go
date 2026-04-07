@@ -3,6 +3,7 @@ package types
 // SearchRequest is the input for the web_search tool.
 type SearchRequest struct {
 	Query     string `json:"query"`
+	Category  string `json:"category,omitempty"`
 	Language  string `json:"language,omitempty"`
 	TimeRange string `json:"time_range,omitempty"`
 	Page      int    `json:"page,omitempty"`
@@ -21,6 +22,7 @@ type SearchResult struct {
 // SearchResponse is returned by the web_search tool.
 type SearchResponse struct {
 	Query       string         `json:"query"`
+	Category    string         `json:"category,omitempty"`
 	Page        int            `json:"page"`
 	Limit       int            `json:"limit"`
 	ResultCount int            `json:"result_count"`

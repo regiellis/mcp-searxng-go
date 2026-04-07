@@ -33,6 +33,9 @@ func TestSearchClientRespectsLimit(t *testing.T) {
 	t.Parallel()
 
 	server := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("categories"); got != "images" {
+			t.Fatalf("expected categories=images, got %q", got)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"query": "golang",
 			"results": []map[string]any{
@@ -54,7 +57,7 @@ func TestSearchClientRespectsLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := client.Search(context.Background(), types.SearchRequest{Query: "golang", Limit: 20})
+	resp, err := client.Search(context.Background(), types.SearchRequest{Query: "golang", Category: "images", Limit: 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,6 +66,9 @@ func TestSearchClientRespectsLimit(t *testing.T) {
 	}
 	if len(resp.Results) != 1 {
 		t.Fatalf("expected one result, got %d", len(resp.Results))
+	}
+	if resp.Category != "images" {
+		t.Fatalf("expected image category, got %q", resp.Category)
 	}
 }
 

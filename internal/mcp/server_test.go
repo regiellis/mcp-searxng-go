@@ -16,6 +16,7 @@ import (
 	"mcp-searxng-go/internal/fetch"
 	"mcp-searxng-go/internal/search"
 	"mcp-searxng-go/internal/security"
+	"mcp-searxng-go/pkg/types"
 )
 
 func TestHTTPEndToEndSearch(t *testing.T) {
@@ -48,6 +49,26 @@ func TestHTTPEndToEndSearch(t *testing.T) {
 	}
 	if rpcResp["error"] != nil {
 		t.Fatalf("unexpected rpc error: %#v", rpcResp["error"])
+	}
+}
+
+func TestToolsListIncludesImageAndVideoSearch(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer(t, "https://example.com")
+	resp := server.handle(context.Background(), mapRequest("tools/list", nil))
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %#v", resp.Error)
+	}
+	payload, err := json.Marshal(resp.Result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(payload, []byte(`"image_search"`)) {
+		t.Fatalf("expected image_search in tools/list response: %s", string(payload))
+	}
+	if !bytes.Contains(payload, []byte(`"video_search"`)) {
+		t.Fatalf("expected video_search in tools/list response: %s", string(payload))
 	}
 }
 
@@ -84,6 +105,20 @@ func newTestServer(t *testing.T, searxURL string) *Server {
 		Policy:               security.NewDomainPolicy(nil, nil),
 	}), logger)
 	return NewServer(cfg, searchClient, reader, logger)
+}
+
+func mapRequest(method string, params any) types.JSONRPCRequest {
+	var raw json.RawMessage
+	if params != nil {
+		data, _ := json.Marshal(params)
+		raw = data
+	}
+	return types.JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      1,
+		Method:  method,
+		Params:  raw,
+	}
 }
 
 type ioDiscard struct{}
