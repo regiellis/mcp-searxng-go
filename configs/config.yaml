@@ -1,0 +1,33 @@
+searxng:
+  base_url: "http://127.0.0.1:7777"
+  timeout: 10s
+  default_language: "all"
+  default_time_range: ""
+  max_limit: 10
+
+server:
+  mode: "http"
+  address: "0.0.0.0:8081"
+  read_timeout: 15s
+  write_timeout: 15s
+  log_level: "info"
+
+fetch:
+  timeout: 15s
+  max_body_size: 2MB
+  max_text_chars: 12000
+  max_redirects: 4
+  allowed_schemes:
+    - http
+    - https
+
+cache:
+  enabled: true
+  ttl_search: 2m
+  ttl_url_read: 5m
+  max_entries: 256
+
+security:
+  block_private_networks: true
+  allow_domains: []
+  deny_domains: []

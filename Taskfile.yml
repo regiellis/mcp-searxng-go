@@ -6,7 +6,6 @@ vars:
   BUILD_DIR: "{{.ROOT_DIR}}/build"
   CACHE_DIR: "{{.ROOT_DIR}}/.cache"
   GO_BUILD_CACHE: "{{.CACHE_DIR}}/go-build"
-  GO_MOD_CACHE: "{{.CACHE_DIR}}/go-mod"
   MAIN_PACKAGE: ./cmd/server
   GOFLAGS_REPRO: -trimpath -buildvcs=false
 
@@ -20,7 +19,6 @@ tasks:
     desc: Build a reproducible server binary into build/
     env:
       GOCACHE: "{{.GO_BUILD_CACHE}}"
-      GOMODCACHE: "{{.GO_MOD_CACHE}}"
     sources:
       - cmd/**/*.go
       - internal/**/*.go
@@ -29,43 +27,39 @@ tasks:
     generates:
       - "{{.BUILD_DIR}}/{{.BINARY_NAME}}"
     cmds:
-      - mkdir -p {{.BUILD_DIR}} {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - mkdir -p {{.BUILD_DIR}} {{.GO_BUILD_CACHE}}
       - go build {{.GOFLAGS_REPRO}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
 
   run:
     desc: Run the server directly for a quick development loop
     env:
       GOCACHE: "{{.GO_BUILD_CACHE}}"
-      GOMODCACHE: "{{.GO_MOD_CACHE}}"
     cmds:
-      - mkdir -p {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - mkdir -p {{.GO_BUILD_CACHE}}
       - go run {{.MAIN_PACKAGE}}
 
   test:
     desc: Run the standard Go test suite
     env:
       GOCACHE: "{{.GO_BUILD_CACHE}}"
-      GOMODCACHE: "{{.GO_MOD_CACHE}}"
     cmds:
-      - mkdir -p {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - mkdir -p {{.GO_BUILD_CACHE}}
       - go test ./...
 
   tidy:
     desc: Keep module dependencies clean
     env:
       GOCACHE: "{{.GO_BUILD_CACHE}}"
-      GOMODCACHE: "{{.GO_MOD_CACHE}}"
     cmds:
-      - mkdir -p {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - mkdir -p {{.GO_BUILD_CACHE}}
       - go mod tidy
 
   lint:
     desc: Run basic static checks with go vet
     env:
       GOCACHE: "{{.GO_BUILD_CACHE}}"
-      GOMODCACHE: "{{.GO_MOD_CACHE}}"
     cmds:
-      - mkdir -p {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - mkdir -p {{.GO_BUILD_CACHE}}
       - go vet ./...
 
   clean:
@@ -78,12 +72,11 @@ tasks:
     desc: Run dependency and code vulnerability checks with govulncheck
     env:
       GOCACHE: "{{.GO_BUILD_CACHE}}"
-      GOMODCACHE: "{{.GO_MOD_CACHE}}"
     preconditions:
       - sh: command -v govulncheck >/dev/null 2>&1
         msg: govulncheck is required for task vuln
     cmds:
-      - mkdir -p {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - mkdir -p {{.GO_BUILD_CACHE}}
       - govulncheck ./...
 
   sbom:
@@ -99,9 +92,8 @@ tasks:
     desc: Build a release binary with reproducible flags and stripped symbols
     env:
       GOCACHE: "{{.GO_BUILD_CACHE}}"
-      GOMODCACHE: "{{.GO_MOD_CACHE}}"
     cmds:
-      - mkdir -p {{.BUILD_DIR}} {{.GO_BUILD_CACHE}} {{.GO_MOD_CACHE}}
+      - mkdir -p {{.BUILD_DIR}} {{.GO_BUILD_CACHE}}
       - go build {{.GOFLAGS_REPRO}} -ldflags="-s -w -buildid=" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
 
   docker:
