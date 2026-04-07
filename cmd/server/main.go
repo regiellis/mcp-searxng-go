@@ -20,6 +20,8 @@ import (
 	"github.com/regiellis/mcp-searxng-go/internal/security"
 )
 
+var version = "dev"
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -54,7 +56,7 @@ func run() error {
 	}
 
 	logger := newLogger(cfg.Server.LogLevel)
-	logger.Info("startup", "mode", cfg.Server.Mode, "address", cfg.Server.Address, "searxng", cfg.SearXNG.BaseURL)
+	logger.Info("startup", "version", version, "mode", cfg.Server.Mode, "address", cfg.Server.Address, "searxng", cfg.SearXNG.BaseURL)
 
 	searchClient, err := search.NewClient(cfg.SearXNG, logger)
 	if err != nil {

@@ -1,0 +1,105 @@
+name: build-and-release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: run tests
+        run: go test ./...
+
+  release:
+    name: release
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            archive: tar.gz
+          - goos: linux
+            goarch: arm64
+            archive: tar.gz
+          - goos: darwin
+            goarch: amd64
+            archive: tar.gz
+          - goos: darwin
+            goarch: arm64
+            archive: tar.gz
+          - goos: windows
+            goarch: amd64
+            archive: zip
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: build archive
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          BIN_NAME="mcp-server"
+          if [ "$GOOS" = "windows" ]; then
+            BIN_NAME="${BIN_NAME}.exe"
+          fi
+
+          DIST_DIR="dist/${VERSION}/mcp-searxng-go_${VERSION}_${GOOS}_${GOARCH}"
+          mkdir -p "${DIST_DIR}"
+
+          go build -trimpath -buildvcs=false -ldflags="-s -w -X main.version=${VERSION}" -o "${DIST_DIR}/${BIN_NAME}" ./cmd/server
+
+          cp README.md LICENSE "${DIST_DIR}/"
+          cp configs/config.yaml "${DIST_DIR}/config.yaml"
+
+          ASSET_BASENAME="mcp-searxng-go_${VERSION}_${GOOS}_${GOARCH}"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            (
+              cd "dist/${VERSION}"
+              zip -r "${ASSET_BASENAME}.zip" "${ASSET_BASENAME}"
+            )
+            echo "ASSET_PATH=dist/${VERSION}/${ASSET_BASENAME}.zip" >> "${GITHUB_ENV}"
+          else
+            tar -C "dist/${VERSION}" -czf "dist/${VERSION}/${ASSET_BASENAME}.tar.gz" "${ASSET_BASENAME}"
+            echo "ASSET_PATH=dist/${VERSION}/${ASSET_BASENAME}.tar.gz" >> "${GITHUB_ENV}"
+          fi
+
+      - name: publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET_PATH }}
+          generate_release_notes: true
