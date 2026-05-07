@@ -82,6 +82,35 @@ func TestToolsListIncludesNewSearchTools(t *testing.T) {
 	if !bytes.Contains(payload, []byte(`"multi_search"`)) {
 		t.Fatalf("expected multi_search in tools/list response: %s", string(payload))
 	}
+	if !bytes.Contains(payload, []byte(`"quick_look"`)) {
+		t.Fatalf("expected quick_look in tools/list response: %s", string(payload))
+	}
+	if !bytes.Contains(payload, []byte(`"deep_research"`)) {
+		t.Fatalf("expected deep_research in tools/list response: %s", string(payload))
+	}
+	for _, tool := range []string{
+		`"scholar_search"`,
+		`"local_search"`,
+		`"shopping_search"`,
+		`"recent_search"`,
+		`"answer_search"`,
+		`"compare_sources"`,
+		`"fact_pack"`,
+		`"monitor_query"`,
+		`"search_then_extract"`,
+		`"search_then_rank"`,
+		`"image_quick_look"`,
+		`"video_quick_look"`,
+		`"find_official_docs"`,
+		`"find_latest_news"`,
+		`"find_examples"`,
+		`"find_primary_sources"`,
+		`"smart_search"`,
+	} {
+		if !bytes.Contains(payload, []byte(tool)) {
+			t.Fatalf("expected %s in tools/list response: %s", tool, string(payload))
+		}
+	}
 	if !bytes.Contains(payload, []byte(`"search_and_read"`)) {
 		t.Fatalf("expected search_and_read in tools/list response: %s", string(payload))
 	}
@@ -131,6 +160,135 @@ func TestRunMultiSearchRejectsInvalidCategory(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected invalid category error")
+	}
+}
+
+func TestQuickLookReturnsDefaultCategories(t *testing.T) {
+	t.Parallel()
+
+	searx := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		category := r.URL.Query().Get("categories")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"query": "golang",
+			"results": []map[string]any{
+				{"title": category, "url": "https://" + category + ".example", "content": category + " result"},
+			},
+		})
+	}))
+	defer searx.Close()
+
+	server := newTestServer(t, searx.URL)
+	result, err := server.runQuickLook(context.Background(), types.QuickLookRequest{Query: "golang"})
+	if err != nil {
+		t.Fatalf("quick_look: %v", err)
+	}
+	if len(result.Categories) != 4 {
+		t.Fatalf("expected 4 categories, got %#v", result.Categories)
+	}
+	if result.Limit != 3 {
+		t.Fatalf("expected default limit 3, got %d", result.Limit)
+	}
+	for _, category := range []string{"general", "images", "videos", "news"} {
+		if _, ok := result.Results[category]; !ok {
+			t.Fatalf("missing category %q in %#v", category, result.Results)
+		}
+	}
+}
+
+func TestDeepResearchReadsTopSources(t *testing.T) {
+	t.Parallel()
+
+	readURL := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(`<html><head><title>Deep Dive</title></head><body>Analysis</body></html>`))
+	}))
+	defer readURL.Close()
+
+	searx := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		category := r.URL.Query().Get("categories")
+		results := []map[string]any{}
+		switch category {
+		case "general":
+			results = []map[string]any{
+				{"title": "Primary", "url": readURL.URL, "content": "Primary source"},
+				{"title": "Secondary", "url": "https://secondary.example", "content": "Secondary source"},
+			}
+		case "news":
+			results = []map[string]any{
+				{"title": "Headline", "url": "https://news.example", "content": "Breaking"},
+			}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"query":   "golang",
+			"results": results,
+		})
+	}))
+	defer searx.Close()
+
+	server := newTestServer(t, searx.URL)
+	result, err := server.runDeepResearch(context.Background(), types.DeepResearchRequest{
+		Query:      "golang",
+		MaxSources: 1,
+	})
+	if err != nil {
+		t.Fatalf("deep_research: %v", err)
+	}
+	if result.General.Category != "general" {
+		t.Fatalf("expected general category, got %q", result.General.Category)
+	}
+	if result.News.Category != "news" {
+		t.Fatalf("expected news category, got %q", result.News.Category)
+	}
+	if len(result.Sources) != 1 {
+		t.Fatalf("expected 1 source, got %d", len(result.Sources))
+	}
+	if result.Sources[0].Read == nil || result.Sources[0].Read.Title != "Deep Dive" {
+		t.Fatalf("expected read title Deep Dive, got %#v", result.Sources[0].Read)
+	}
+}
+
+func TestSearchThenRankPromotesDocs(t *testing.T) {
+	t.Parallel()
+
+	ranked := rankResults([]types.SearchResult{
+		{Title: "Community post", URL: "https://blog.example/dev", Domain: "blog.example", Snippet: "notes"},
+		{Title: "Official documentation", URL: "https://docs.example.com/api", Domain: "docs.example.com", Snippet: "API docs"},
+	}, "official_docs")
+	if len(ranked) != 2 {
+		t.Fatalf("expected 2 ranked results, got %d", len(ranked))
+	}
+	if ranked[0].Result.Domain != "docs.example.com" {
+		t.Fatalf("expected docs result first, got %#v", ranked[0])
+	}
+}
+
+func TestSearchThenExtractReturnsRequestedFields(t *testing.T) {
+	t.Parallel()
+
+	searx := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"query": "golang",
+			"results": []map[string]any{
+				{"title": "Go Release", "url": "https://go.dev/blog", "content": `Released on May 7, 2026 by Go Team "Faster builds"`},
+			},
+		})
+	}))
+	defer searx.Close()
+
+	server := newTestServer(t, searx.URL)
+	result, err := server.runSearchThenExtract(context.Background(), types.SearchThenExtractRequest{
+		Query:    "golang",
+		Fields:   []string{"dates", "entities", "quotes"},
+		ReadTopN: 1,
+	})
+	if err != nil {
+		t.Fatalf("search_then_extract: %v", err)
+	}
+	if len(result.Documents) != 1 {
+		t.Fatalf("expected 1 document, got %d", len(result.Documents))
+	}
+	if len(result.Documents[0].Fields["dates"]) == 0 {
+		t.Fatalf("expected dates extraction, got %#v", result.Documents[0].Fields)
 	}
 }
 

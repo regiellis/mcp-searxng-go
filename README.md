@@ -16,6 +16,25 @@ This service exposes the following primary tools via the MCP interface:
 *   **search\_with\_engines**: Runs a search against specific SearXNG engines.
 *   **search\_with\_site\_filter**: Adds a `site:` filter convenience wrapper.
 *   **multi\_search**: Runs one query across multiple categories.
+*   **quick\_look**: Returns a compact snapshot across general, news, images, and videos.
+*   **deep\_research**: Expands a query with broader search plus automatic source reads.
+*   **scholar\_search**: Uses scholarly query presets for papers, journals, preprints, and research material.
+*   **local\_search**: Uses a location-aware query preset for places, maps, and nearby results.
+*   **shopping\_search**: Uses a shopping-oriented query preset for products, pricing, and reviews.
+*   **recent\_search**: Applies recency defaults for latest updates.
+*   **answer\_search**: Returns a compact answer-oriented summary backed by top sources.
+*   **compare\_sources**: Surfaces agreement and disagreement notes across top sources.
+*   **fact\_pack**: Bundles source reads with extracted dates, entities, and quotes.
+*   **monitor\_query**: Returns stable fingerprints for polling result changes over time.
+*   **search\_then\_extract**: Extracts requested fields from the top read results.
+*   **search\_then\_rank**: Reranks results for intents like official docs, examples, or primary sources.
+*   **image\_quick\_look**: Returns an image-first compact result set with media metadata when available.
+*   **video\_quick\_look**: Returns a video-first compact result set with media metadata when available.
+*   **find\_official\_docs**: Preset for official documentation discovery.
+*   **find\_latest\_news**: Preset for fresh news discovery.
+*   **find\_examples**: Preset for examples, demos, and tutorials.
+*   **find\_primary\_sources**: Preset for source-of-record material.
+*   **smart\_search**: Unified entrypoint with multiple search modes.
 *   **search\_and\_read**: Searches first, then reads the selected result in one call.
 *   **url\_read**: Fetches and parses the content of a public URL.
 
@@ -37,6 +56,8 @@ This service was intentionally designed to minimize operational complexity and m
 *   **Transport:** Supports MCP over `stdio` and HTTP transport.
 *   **Search:** Seamlessly integrates with SearXNG, providing normalized results.
 *   **URL Reading:** Robust public URL reading with built-in Server-Side Request Forgery (SSRF) protections.
+*   **Research Modes:** Supports both fast triage (`quick_look`) and heavier source collection (`deep_research`).
+*   **Task Modes:** Supports answer synthesis, extraction, ranking, comparison, monitoring, and preset search intents.
 *   **Caching:** Bounded in-memory TTL cache for fast lookups.
 *   **Error Handling:** Structured JSON-RPC error responses.
 *   **Configuration:** Flexible YAML configuration with full support for environment variable overrides.
@@ -249,6 +270,48 @@ Identical input shape to `web_search`, but queries SearXNG with `categories=imag
 
 #### video\_search
 Identical input shape to `web_search`, but queries SearXNG with `categories=videos`.
+
+#### quick\_look
+Returns a compact, multi-category snapshot intended for fast “what’s here?” checks. By default it searches `general`, `images`, `videos`, and `news` with a smaller per-category limit.
+
+**Example MCP call:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "tools/call",
+  "params": {
+    "name": "quick_look",
+    "arguments": {
+      "query": "golang release",
+      "limit": 3
+    }
+  }
+}
+```
+
+#### deep\_research
+Runs a broader general search, a parallel news search, then automatically reads the top general result pages so clients get source text back in one tool call.
+
+**Example MCP call:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "tools/call",
+  "params": {
+    "name": "deep_research",
+    "arguments": {
+      "query": "golang 1.25 generics changes",
+      "general_limit": 5,
+      "news_limit": 3,
+      "max_sources": 2
+    }
+  }
+}
+```
 
 **Example MCP call:**
 
