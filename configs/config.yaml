@@ -5,6 +5,16 @@ searxng:
   default_time_range: ""
   max_limit: 10
 
+# Optional Brave Search API merge. When enabled and an API key is present, Brave
+# results are interleaved with SearXNG results (de-duplicated by URL, capped at
+# searxng.max_limit). If Brave is unreachable, SearXNG results are returned as-is.
+# The api_key is sourced from the BRAVE_SEARCH_API environment variable / .env
+# file rather than this file, so the secret is never committed.
+brave:
+  enabled: true
+  base_url: "https://api.search.brave.com/res/v1"
+  timeout: 8s
+
 server:
   mode: "http"
   address: "0.0.0.0:7778"

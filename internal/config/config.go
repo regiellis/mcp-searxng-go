@@ -17,6 +17,7 @@ type ByteSize int64
 // Config contains runtime configuration.
 type Config struct {
 	SearXNG  SearXNGConfig  `yaml:"searxng"`
+	Brave    BraveConfig    `yaml:"brave"`
 	Server   ServerConfig   `yaml:"server"`
 	Fetch    FetchConfig    `yaml:"fetch"`
 	Cache    CacheConfig    `yaml:"cache"`
@@ -30,6 +31,23 @@ type SearXNGConfig struct {
 	DefaultLanguage  string        `yaml:"default_language"`
 	DefaultTimeRange string        `yaml:"default_time_range"`
 	MaxLimit         int           `yaml:"max_limit"`
+}
+
+// BraveConfig contains optional Brave Search API client configuration.
+// Results from Brave are merged into SearXNG results when an API key is present;
+// if Brave is unreachable the SearXNG results are returned unchanged.
+type BraveConfig struct {
+	APIKey  string        `yaml:"api_key"`
+	BaseURL string        `yaml:"base_url"`
+	Timeout time.Duration `yaml:"timeout"`
+	Enabled bool          `yaml:"enabled"`
+}
+
+// Active reports whether Brave merging should be attempted.
+func (b BraveConfig) Active() bool {
+	return b.Enabled &&
+		strings.TrimSpace(b.APIKey) != "" &&
+		strings.TrimSpace(b.BaseURL) != ""
 }
 
 // ServerConfig contains transport configuration.
@@ -76,6 +94,11 @@ func Default() Config {
 			DefaultTimeRange: "",
 			MaxLimit:         10,
 		},
+		Brave: BraveConfig{
+			BaseURL: "https://api.search.brave.com/res/v1",
+			Timeout: 8 * time.Second,
+			Enabled: true,
+		},
 		Server: ServerConfig{
 			Mode:          "http",
 			Address:       "0.0.0.0:8081",
@@ -101,6 +124,43 @@ func Default() Config {
 			BlockPrivateNetworks: false,
 		},
 	}
+}
+
+// LoadDotEnv reads a KEY=VALUE file (such as .env) and exports any keys that are
+// not already present in the process environment. Existing environment variables
+// always win so real env / systemd EnvironmentFile values are never overridden.
+// A missing file is not an error: the function simply does nothing.
+func LoadDotEnv(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for raw := range strings.SplitSeq(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		line = strings.TrimPrefix(line, "export ")
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		if key == "" {
+			continue
+		}
+		if _, present := os.LookupEnv(key); present {
+			continue
+		}
+		if err := os.Setenv(key, value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Load reads YAML config and applies environment overrides.
@@ -157,6 +217,12 @@ func applyEnv(cfg *Config) {
 	setString("MCP_SEARXNG_DEFAULT_LANGUAGE", &cfg.SearXNG.DefaultLanguage)
 	setString("MCP_SEARXNG_DEFAULT_TIME_RANGE", &cfg.SearXNG.DefaultTimeRange)
 	setInt("MCP_SEARXNG_MAX_LIMIT", &cfg.SearXNG.MaxLimit)
+
+	// BRAVE_SEARCH_API is the documented key name used in the deployed .env file.
+	setString("BRAVE_SEARCH_API", &cfg.Brave.APIKey)
+	setString("MCP_BRAVE_BASE_URL", &cfg.Brave.BaseURL)
+	setDuration("MCP_BRAVE_TIMEOUT", &cfg.Brave.Timeout)
+	setBool("MCP_BRAVE_ENABLED", &cfg.Brave.Enabled)
 
 	setString("MCP_SERVER_MODE", &cfg.Server.Mode)
 	setString("MCP_SERVER_ADDRESS", &cfg.Server.Address)

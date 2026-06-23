@@ -22,6 +22,13 @@ type searxResponse struct {
 	Results []searxResult `json:"results"`
 }
 
+// BraveSearcher fetches supplemental results to merge with SearXNG output.
+// It is satisfied by *brave.Client and kept as an interface so the search
+// package stays decoupled and easily testable.
+type BraveSearcher interface {
+	Search(ctx context.Context, category string, req types.SearchRequest, limit int) ([]types.SearchResult, error)
+}
+
 // Client calls SearXNG and normalizes results.
 type Client struct {
 	baseURL          *url.URL
@@ -30,15 +37,27 @@ type Client struct {
 	defaultTimeRange string
 	maxLimit         int
 	logger           *slog.Logger
+	brave            BraveSearcher
+}
+
+// Option customizes a Client at construction time.
+type Option func(*Client)
+
+// WithBrave merges results from the given Brave searcher into SearXNG output.
+// A nil searcher is ignored, leaving SearXNG as the sole source.
+func WithBrave(searcher BraveSearcher) Option {
+	return func(c *Client) {
+		c.brave = searcher
+	}
 }
 
 // NewClient returns a SearXNG client.
-func NewClient(cfg config.SearXNGConfig, logger *slog.Logger) (*Client, error) {
+func NewClient(cfg config.SearXNGConfig, logger *slog.Logger, opts ...Option) (*Client, error) {
 	baseURL, err := url.Parse(cfg.BaseURL)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{
+	c := &Client{
 		baseURL: baseURL,
 		httpClient: client.New(client.Options{
 			Timeout:               cfg.Timeout,
@@ -52,7 +71,11 @@ func NewClient(cfg config.SearXNGConfig, logger *slog.Logger) (*Client, error) {
 		defaultTimeRange: cfg.DefaultTimeRange,
 		maxLimit:         cfg.MaxLimit,
 		logger:           logger,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c, nil
 }
 
 // Search calls SearXNG and returns normalized results.
@@ -110,6 +133,7 @@ func (c *Client) Search(ctx context.Context, req types.SearchRequest) (types.Sea
 	}
 
 	results := normalizeResults(decoded.Results, limit)
+	results = c.mergeBrave(ctx, req, limit, results)
 	return types.SearchResponse{
 		Query:       strings.TrimSpace(req.Query),
 		Category:    strings.TrimSpace(req.Category),
@@ -120,6 +144,86 @@ func (c *Client) Search(ctx context.Context, req types.SearchRequest) (types.Sea
 		ResultCount: len(results),
 		Results:     results,
 	}, nil
+}
+
+// mergeBrave augments SearXNG results with Brave results when a Brave searcher
+// is configured. It fails open: any Brave error is logged and the original
+// SearXNG results are returned unchanged. SearXNG results keep priority; Brave
+// results are interleaved, de-duplicated by URL, and the combined set is capped
+// at limit so the configured max_limit is still honored.
+func (c *Client) mergeBrave(ctx context.Context, req types.SearchRequest, limit int, results []types.SearchResult) []types.SearchResult {
+	if c.brave == nil {
+		return results
+	}
+	braveResults, err := c.brave.Search(ctx, strings.TrimSpace(req.Category), req, limit)
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Warn("brave search unavailable; returning searxng results only",
+				"category", strings.TrimSpace(req.Category), "error", err)
+		}
+		return results
+	}
+	if len(braveResults) == 0 {
+		return results
+	}
+	return mergeResults(results, braveResults, limit)
+}
+
+// mergeResults interleaves two result sets, removing duplicate URLs and capping
+// the output at limit (limit <= 0 means no cap). The primary set is preferred:
+// when both sets contain the same URL the primary entry is kept.
+func mergeResults(primary, secondary []types.SearchResult, limit int) []types.SearchResult {
+	capacity := len(primary) + len(secondary)
+	seen := make(map[string]struct{}, capacity)
+	out := make([]types.SearchResult, 0, capacity)
+
+	add := func(result types.SearchResult) {
+		if limit > 0 && len(out) >= limit {
+			return
+		}
+		key := dedupeKey(result.URL)
+		if key == "" {
+			return
+		}
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, result)
+	}
+
+	for i := 0; i < len(primary) || i < len(secondary); i++ {
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+		if i < len(primary) {
+			add(primary[i])
+		}
+		if i < len(secondary) {
+			add(secondary[i])
+		}
+	}
+	return out
+}
+
+// dedupeKey normalizes a URL for duplicate detection: lowercased host and path
+// with the scheme, a leading "www.", and any trailing slash removed.
+func dedupeKey(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" {
+		return strings.ToLower(raw)
+	}
+	host := strings.TrimPrefix(strings.ToLower(parsed.Hostname()), "www.")
+	path := strings.TrimRight(parsed.EscapedPath(), "/")
+	key := host + path
+	if parsed.RawQuery != "" {
+		key += "?" + parsed.RawQuery
+	}
+	return key
 }
 
 // Ping checks whether the configured SearXNG instance is reachable.

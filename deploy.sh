@@ -7,6 +7,7 @@ APP_NAME="mcp-searxng-go"
 BINARY_NAME="mcp-server"
 LOCAL_BINARY="${ROOT_DIR}/build/${BINARY_NAME}"
 LOCAL_CONFIG="${ROOT_DIR}/configs/config.yaml"
+LOCAL_ENV="${ROOT_DIR}/.env"
 
 REMOTE_HOST="${REMOTE_HOST:-yfms@192.168.4.70}"
 REMOTE_BASE_DIR="${REMOTE_BASE_DIR:-/home/yfms/docker/docker-searxng}"
@@ -21,6 +22,7 @@ REMOTE_ENV_FILE="${REMOTE_BASE_DIR}/${APP_NAME}.env"
 SERVICE_HEALTH_URL="${SERVICE_HEALTH_URL:-http://127.0.0.1:7778/healthz}"
 REMOTE_BINARY_TMP_PATH="${REMOTE_BINARY_PATH}.tmp"
 REMOTE_CONFIG_TMP_PATH="${REMOTE_CONFIG_PATH}.tmp"
+REMOTE_ENV_TMP_PATH="${REMOTE_ENV_FILE}.tmp"
 
 usage() {
   cat <<EOF
@@ -101,7 +103,17 @@ upload_assets() {
   scp "${LOCAL_CONFIG}" "${REMOTE_HOST}:${REMOTE_CONFIG_TMP_PATH}"
   run_remote "mv '${REMOTE_BINARY_TMP_PATH}' '${REMOTE_BINARY_PATH}' && chmod 775 '${REMOTE_BINARY_PATH}'"
   run_remote "mv '${REMOTE_CONFIG_TMP_PATH}' '${REMOTE_CONFIG_PATH}'"
+  upload_env
   service_unit | ssh "${REMOTE_HOST}" "cat > ${REMOTE_BASE_DIR}/${REMOTE_SERVICE_NAME}"
+}
+
+upload_env() {
+  if [[ ! -f "${LOCAL_ENV}" ]]; then
+    echo "no local .env at ${LOCAL_ENV}; skipping secret upload (BRAVE_SEARCH_API will be unset)" >&2
+    return 0
+  fi
+  scp "${LOCAL_ENV}" "${REMOTE_HOST}:${REMOTE_ENV_TMP_PATH}"
+  run_remote "mv '${REMOTE_ENV_TMP_PATH}' '${REMOTE_ENV_FILE}' && chmod 600 '${REMOTE_ENV_FILE}'"
 }
 
 install_service() {

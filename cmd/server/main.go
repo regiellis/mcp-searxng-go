@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/regiellis/mcp-searxng-go/internal/brave"
 	"github.com/regiellis/mcp-searxng-go/internal/config"
 	"github.com/regiellis/mcp-searxng-go/internal/fetch"
 	"github.com/regiellis/mcp-searxng-go/internal/mcp"
@@ -38,6 +39,12 @@ func run() error {
 	)
 	flag.Parse()
 
+	// Load .env (if present) before config so keys like BRAVE_SEARCH_API are
+	// picked up by environment overrides. Real env vars always take precedence.
+	if err := config.LoadDotEnv(".env"); err != nil {
+		return err
+	}
+
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		return err
@@ -58,7 +65,17 @@ func run() error {
 	logger := newLogger(cfg.Server.LogLevel)
 	logger.Info("startup", "version", version, "mode", cfg.Server.Mode, "address", cfg.Server.Address, "searxng", cfg.SearXNG.BaseURL)
 
-	searchClient, err := search.NewClient(cfg.SearXNG, logger)
+	var searchOpts []search.Option
+	if cfg.Brave.Active() {
+		braveClient, err := brave.NewClient(cfg.Brave)
+		if err != nil {
+			return err
+		}
+		searchOpts = append(searchOpts, search.WithBrave(braveClient))
+		logger.Info("brave search merge enabled", "base_url", cfg.Brave.BaseURL)
+	}
+
+	searchClient, err := search.NewClient(cfg.SearXNG, logger, searchOpts...)
 	if err != nil {
 		return err
 	}
