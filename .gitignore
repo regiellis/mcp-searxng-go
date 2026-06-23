@@ -7,3 +7,5 @@ build/
 AGENTS.md
 *.log
 .env
+/media/
+/downloads/

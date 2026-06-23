@@ -18,10 +18,22 @@ type ByteSize int64
 type Config struct {
 	SearXNG  SearXNGConfig  `yaml:"searxng"`
 	Brave    BraveConfig    `yaml:"brave"`
+	Media    MediaConfig    `yaml:"media"`
 	Server   ServerConfig   `yaml:"server"`
 	Fetch    FetchConfig    `yaml:"fetch"`
 	Cache    CacheConfig    `yaml:"cache"`
 	Security SecurityConfig `yaml:"security"`
+}
+
+// MediaConfig configures the yt-dlp / ffmpeg backed media tools. All output is
+// confined to OutputDir. Binaries are looked up on PATH unless an absolute path
+// is given.
+type MediaConfig struct {
+	Enabled    bool          `yaml:"enabled"`
+	OutputDir  string        `yaml:"output_dir"`
+	YtDlpPath  string        `yaml:"yt_dlp_path"`
+	FfmpegPath string        `yaml:"ffmpeg_path"`
+	Timeout    time.Duration `yaml:"timeout"`
 }
 
 // SearXNGConfig contains SearXNG client configuration.
@@ -98,6 +110,13 @@ func Default() Config {
 			BaseURL: "https://api.search.brave.com/res/v1",
 			Timeout: 8 * time.Second,
 			Enabled: true,
+		},
+		Media: MediaConfig{
+			Enabled:    true,
+			OutputDir:  "media",
+			YtDlpPath:  "yt-dlp",
+			FfmpegPath: "ffmpeg",
+			Timeout:    10 * time.Minute,
 		},
 		Server: ServerConfig{
 			Mode:          "http",
@@ -208,6 +227,14 @@ func (c Config) Validate() error {
 	if len(c.Fetch.AllowedSchemes) == 0 {
 		return errors.New("fetch.allowed_schemes must not be empty")
 	}
+	if c.Media.Enabled {
+		if strings.TrimSpace(c.Media.OutputDir) == "" {
+			return errors.New("media.output_dir is required when media is enabled")
+		}
+		if c.Media.Timeout <= 0 {
+			return errors.New("media.timeout must be positive")
+		}
+	}
 	return nil
 }
 
@@ -223,6 +250,12 @@ func applyEnv(cfg *Config) {
 	setString("MCP_BRAVE_BASE_URL", &cfg.Brave.BaseURL)
 	setDuration("MCP_BRAVE_TIMEOUT", &cfg.Brave.Timeout)
 	setBool("MCP_BRAVE_ENABLED", &cfg.Brave.Enabled)
+
+	setBool("MCP_MEDIA_ENABLED", &cfg.Media.Enabled)
+	setString("MCP_MEDIA_OUTPUT_DIR", &cfg.Media.OutputDir)
+	setString("MCP_MEDIA_YT_DLP_PATH", &cfg.Media.YtDlpPath)
+	setString("MCP_MEDIA_FFMPEG_PATH", &cfg.Media.FfmpegPath)
+	setDuration("MCP_MEDIA_TIMEOUT", &cfg.Media.Timeout)
 
 	setString("MCP_SERVER_MODE", &cfg.Server.Mode)
 	setString("MCP_SERVER_ADDRESS", &cfg.Server.Address)

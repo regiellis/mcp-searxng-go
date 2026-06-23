@@ -20,6 +20,7 @@ import (
 	"github.com/regiellis/mcp-searxng-go/internal/cache"
 	"github.com/regiellis/mcp-searxng-go/internal/config"
 	"github.com/regiellis/mcp-searxng-go/internal/fetch"
+	"github.com/regiellis/mcp-searxng-go/internal/media"
 	"github.com/regiellis/mcp-searxng-go/internal/search"
 	"github.com/regiellis/mcp-searxng-go/pkg/types"
 )
@@ -29,18 +30,21 @@ type Server struct {
 	cfg         config.Config
 	search      *search.Client
 	reader      *fetch.Reader
+	media       *media.Runner
 	logger      *slog.Logger
 	searchCache *cache.TTLCache[types.SearchResponse]
 	readCache   *cache.TTLCache[types.URLReadResponse]
 	sem         chan struct{}
 }
 
-// NewServer returns a configured MCP server.
-func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Reader, logger *slog.Logger) *Server {
+// NewServer returns a configured MCP server. mediaRunner may be nil, in which
+// case the media tools are advertised but report that they are disabled.
+func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Reader, mediaRunner *media.Runner, logger *slog.Logger) *Server {
 	return &Server{
 		cfg:         cfg,
 		search:      searchClient,
 		reader:      reader,
+		media:       mediaRunner,
 		logger:      logger,
 		searchCache: cache.New[types.SearchResponse](cfg.Cache.MaxEntries),
 		readCache:   cache.New[types.URLReadResponse](cfg.Cache.MaxEntries),
@@ -470,6 +474,45 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 		result, err := s.runSearchAndRead(ctx, input)
 		if err != nil {
 			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "download_video":
+		var input types.DownloadVideoRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid download_video arguments", map[string]any{"detail": err.Error()})
+		}
+		if s.media == nil {
+			return responseError(req.ID, errInvalidRequest, "media tools are disabled", nil)
+		}
+		result, err := s.media.Download(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInternal, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "transcode_media":
+		var input types.TranscodeRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid transcode_media arguments", map[string]any{"detail": err.Error()})
+		}
+		if s.media == nil {
+			return responseError(req.ID, errInvalidRequest, "media tools are disabled", nil)
+		}
+		result, err := s.media.Transcode(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInternal, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "download_subtitles":
+		var input types.SubtitlesRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid download_subtitles arguments", map[string]any{"detail": err.Error()})
+		}
+		if s.media == nil {
+			return responseError(req.ID, errInvalidRequest, "media tools are disabled", nil)
+		}
+		result, err := s.media.Subtitles(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInternal, err.Error(), nil)
 		}
 		return s.toolResult(req.ID, result)
 	case "url_read":

@@ -15,6 +15,16 @@ brave:
   base_url: "https://api.search.brave.com/res/v1"
   timeout: 8s
 
+# Media tools (download_video, transcode_media, download_subtitles) shell out to
+# yt-dlp and ffmpeg, which must be installed on the host. All output is confined
+# to output_dir (relative paths resolve against the process working directory).
+media:
+  enabled: true
+  output_dir: "media"
+  yt_dlp_path: "yt-dlp"
+  ffmpeg_path: "ffmpeg"
+  timeout: 10m
+
 server:
   mode: "http"
   address: "0.0.0.0:7778"

@@ -17,6 +17,7 @@ import (
 	"github.com/regiellis/mcp-searxng-go/internal/config"
 	"github.com/regiellis/mcp-searxng-go/internal/fetch"
 	"github.com/regiellis/mcp-searxng-go/internal/mcp"
+	"github.com/regiellis/mcp-searxng-go/internal/media"
 	"github.com/regiellis/mcp-searxng-go/internal/search"
 	"github.com/regiellis/mcp-searxng-go/internal/security"
 )
@@ -84,8 +85,23 @@ func run() error {
 		BlockPrivateNetworks: cfg.Security.BlockPrivateNetworks,
 		Policy:               security.NewDomainPolicy(cfg.Security.AllowDomains, cfg.Security.DenyDomains),
 	}
-	reader := fetch.NewReader(cfg.Fetch, fetch.NewURLValidator(cfg.Fetch.AllowedSchemes, guard), logger)
-	server := mcp.NewServer(cfg, searchClient, reader, logger)
+	validator := fetch.NewURLValidator(cfg.Fetch.AllowedSchemes, guard)
+	reader := fetch.NewReader(cfg.Fetch, validator, logger)
+
+	var mediaRunner *media.Runner
+	if cfg.Media.Enabled {
+		mediaRunner, err = media.NewRunner(cfg.Media, validator, logger)
+		if err != nil {
+			return err
+		}
+		if preErr := mediaRunner.Preflight(); preErr != nil {
+			logger.Warn("media tools enabled but a backend binary is missing; calls will fail until installed", "error", preErr)
+		} else {
+			logger.Info("media tools enabled", "output_dir", mediaRunner.OutputDir())
+		}
+	}
+
+	server := mcp.NewServer(cfg, searchClient, reader, mediaRunner, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

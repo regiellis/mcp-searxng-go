@@ -216,6 +216,53 @@ func toolDefinitions() []types.ToolDefinition {
 				"additionalProperties": false,
 			},
 		},
+		{
+			Name:        "download_video",
+			Description: "Download a video (or its audio) at best quality via yt-dlp into the server media directory. Returns the saved file path and metadata.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"url":        map[string]any{"type": "string", "format": "uri"},
+					"format":     map[string]any{"type": "string", "description": "Optional yt-dlp -f format selector; defaults to best video+audio."},
+					"audio_only": map[string]any{"type": "boolean", "description": "Extract best audio as mp3 instead of video."},
+				},
+				"required":             []string{"url"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "transcode_media",
+			Description: "Convert or compress a media file already in the server media directory using ffmpeg. Path must reference a file inside that directory.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path":        map[string]any{"type": "string", "description": "Path to an existing file inside the media output directory."},
+					"format":      map[string]any{"type": "string", "description": "Target container/extension, e.g. mp4, webm, mp3. Default mp4."},
+					"video_codec": map[string]any{"type": "string", "description": "ffmpeg video codec, e.g. libx264, libx265, vp9."},
+					"audio_codec": map[string]any{"type": "string", "description": "ffmpeg audio codec, e.g. aac, libmp3lame, libopus."},
+					"crf":         map[string]any{"type": "integer", "minimum": 0, "maximum": 51, "description": "Constant rate factor (lower = higher quality)."},
+					"max_width":   map[string]any{"type": "integer", "minimum": 1, "description": "Downscale so width does not exceed this value."},
+					"output_name": map[string]any{"type": "string", "description": "Optional output base filename (no directories)."},
+				},
+				"required":             []string{"path"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "download_subtitles",
+			Description: "Download subtitle/caption tracks for a video URL via yt-dlp and save them to the server media directory for further work.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"url":            map[string]any{"type": "string", "format": "uri"},
+					"language":       map[string]any{"type": "string", "description": "Subtitle language selector (yt-dlp --sub-langs). Default en."},
+					"format":         map[string]any{"type": "string", "description": "Convert subtitles to this format, e.g. srt, vtt. Default srt."},
+					"auto_generated": map[string]any{"type": "boolean", "description": "Include auto-generated captions when no human subtitles exist."},
+				},
+				"required":             []string{"url"},
+				"additionalProperties": false,
+			},
+		},
 	}
 }
 
