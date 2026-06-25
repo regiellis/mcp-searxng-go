@@ -22,6 +22,7 @@ import (
 	"github.com/regiellis/mcp-searxng-go/internal/fetch"
 	"github.com/regiellis/mcp-searxng-go/internal/media"
 	"github.com/regiellis/mcp-searxng-go/internal/search"
+	"github.com/regiellis/mcp-searxng-go/internal/transcript"
 	"github.com/regiellis/mcp-searxng-go/pkg/types"
 )
 
@@ -31,20 +32,23 @@ type Server struct {
 	search      *search.Client
 	reader      *fetch.Reader
 	media       *media.Runner
+	cleaner     *transcript.Cleaner
 	logger      *slog.Logger
 	searchCache *cache.TTLCache[types.SearchResponse]
 	readCache   *cache.TTLCache[types.URLReadResponse]
 	sem         chan struct{}
 }
 
-// NewServer returns a configured MCP server. mediaRunner may be nil, in which
-// case the media tools are advertised but report that they are disabled.
-func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Reader, mediaRunner *media.Runner, logger *slog.Logger) *Server {
+// NewServer returns a configured MCP server. mediaRunner and cleaner may each be
+// nil, in which case the tools depending on them are advertised but report that
+// they are disabled.
+func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Reader, mediaRunner *media.Runner, cleaner *transcript.Cleaner, logger *slog.Logger) *Server {
 	return &Server{
 		cfg:         cfg,
 		search:      searchClient,
 		reader:      reader,
 		media:       mediaRunner,
+		cleaner:     cleaner,
 		logger:      logger,
 		searchCache: cache.New[types.SearchResponse](cfg.Cache.MaxEntries),
 		readCache:   cache.New[types.URLReadResponse](cfg.Cache.MaxEntries),
@@ -524,6 +528,16 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 			return responseError(req.ID, errInvalidRequest, "media tools are disabled", nil)
 		}
 		result, err := s.media.ReadFile(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInternal, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "clean_subtitles":
+		var input types.CleanSubtitlesRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid clean_subtitles arguments", map[string]any{"detail": err.Error()})
+		}
+		result, err := s.runCleanSubtitles(ctx, input)
 		if err != nil {
 			return responseError(req.ID, errInternal, err.Error(), nil)
 		}
@@ -1053,6 +1067,53 @@ func (s *Server) runRead(ctx context.Context, req types.URLReadRequest) (types.U
 	}
 	s.logger.Info("tool end", "tool", "url_read", "status_code", resp.StatusCode)
 	return resp, nil
+}
+
+// maxSubtitleBytes caps how much of a subtitle file is read before cleaning.
+// Even multi-hour transcripts sit well under this; it is a guard, not a target.
+const maxSubtitleBytes int64 = 8 << 20 // 8 MiB
+
+// runCleanSubtitles reads a subtitle file from the media sandbox and runs it
+// through the DeepSeek-backed cleaner, optionally saving the result alongside the
+// source. Both the media runner (for file access) and the cleaner (for the LLM)
+// must be configured.
+func (s *Server) runCleanSubtitles(ctx context.Context, req types.CleanSubtitlesRequest) (types.CleanSubtitlesResponse, error) {
+	if s.media == nil {
+		return types.CleanSubtitlesResponse{}, fmt.Errorf("media tools are disabled")
+	}
+	if s.cleaner == nil {
+		return types.CleanSubtitlesResponse{}, fmt.Errorf("transcript cleaning is disabled: set DEEPSEEK_API_KEY to enable it")
+	}
+
+	file, err := s.media.ReadFile(ctx, types.ReadMediaFileRequest{Path: req.Path, MaxBytes: maxSubtitleBytes})
+	if err != nil {
+		return types.CleanSubtitlesResponse{}, err
+	}
+	if file.Encoding != "text" {
+		return types.CleanSubtitlesResponse{}, fmt.Errorf("%q is not a text subtitle file", req.Path)
+	}
+	if file.Truncated {
+		s.logger.Warn("subtitle truncated before cleaning", "path", file.Path, "limit", maxSubtitleBytes)
+	}
+
+	s.logger.Info("tool start", "tool", "clean_subtitles", "path", file.Path, "chars", len(file.Content))
+	result, err := s.cleaner.Clean(ctx, file.Content, req.Topic)
+	if err != nil {
+		s.logger.Error("tool failure", "tool", "clean_subtitles", "error", err)
+		return types.CleanSubtitlesResponse{}, err
+	}
+	result.SourcePath = file.Path
+
+	if req.Save {
+		saved, saveErr := s.media.WriteDerived(req.Path, ".clean.txt", []byte(result.Content))
+		if saveErr != nil {
+			return types.CleanSubtitlesResponse{}, fmt.Errorf("save cleaned transcript: %w", saveErr)
+		}
+		result.SavedPath = saved.Path
+	}
+
+	s.logger.Info("tool end", "tool", "clean_subtitles", "chunks", result.Chunks, "input_chars", result.InputChars, "output_chars", result.OutputChars)
+	return result, nil
 }
 
 func (s *Server) toolResult(id any, payload any) types.JSONRPCResponse {

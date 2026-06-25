@@ -25,6 +25,20 @@ media:
   ffmpeg_path: "ffmpeg"
   timeout: 10m
 
+# Optional transcript cleaning (clean_subtitles tool). Sends a downloaded
+# subtitle/transcript through a DeepSeek chat model that strips intros, outros,
+# like/subscribe asks, sponsor reads, ads, and caption filler while keeping the
+# substantive on-topic content (not a brief summary). The api_key is sourced from
+# the DEEPSEEK_API_KEY environment variable / .env file, never this file; the tool
+# stays disabled until the key is present. max_input_chars bounds each request so
+# long transcripts are processed in order across multiple calls.
+llm:
+  enabled: true
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-v4-flash"
+  timeout: 5m
+  max_input_chars: 48000
+
 server:
   mode: "http"
   address: "0.0.0.0:7778"

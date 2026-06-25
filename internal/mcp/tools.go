@@ -264,6 +264,20 @@ func toolDefinitions() []types.ToolDefinition {
 			},
 		},
 		{
+			Name:        "clean_subtitles",
+			Description: "Clean a downloaded subtitle/transcript file using an LLM: removes intros, outros, like/subscribe asks, sponsor reads, ads, and caption filler while preserving the substantive on-topic content (not a brief summary). Path must reference a file inside the media directory (e.g. from download_subtitles). The call may take a while for long transcripts. Requires DEEPSEEK_API_KEY.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path":  map[string]any{"type": "string", "description": "Path to a subtitle/transcript file inside the media output directory."},
+					"topic": map[string]any{"type": "string", "description": "Optional topic hint; material unrelated to it is treated as removable."},
+					"save":  map[string]any{"type": "boolean", "description": "Also write the cleaned text to a .clean.txt file in the media directory."},
+				},
+				"required":             []string{"path"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "read_media_file",
 			Description: "Read the contents of a file inside the server media directory, such as a subtitle returned by download_subtitles. Returns UTF-8 text when possible, otherwise base64. Use this to retrieve files the other media tools saved server-side.",
 			InputSchema: map[string]any{

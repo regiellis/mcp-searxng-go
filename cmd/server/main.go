@@ -16,10 +16,12 @@ import (
 	"github.com/regiellis/mcp-searxng-go/internal/brave"
 	"github.com/regiellis/mcp-searxng-go/internal/config"
 	"github.com/regiellis/mcp-searxng-go/internal/fetch"
+	"github.com/regiellis/mcp-searxng-go/internal/llm"
 	"github.com/regiellis/mcp-searxng-go/internal/mcp"
 	"github.com/regiellis/mcp-searxng-go/internal/media"
 	"github.com/regiellis/mcp-searxng-go/internal/search"
 	"github.com/regiellis/mcp-searxng-go/internal/security"
+	"github.com/regiellis/mcp-searxng-go/internal/transcript"
 )
 
 var version = "dev"
@@ -101,7 +103,19 @@ func run() error {
 		}
 	}
 
-	server := mcp.NewServer(cfg, searchClient, reader, mediaRunner, logger)
+	var cleaner *transcript.Cleaner
+	if cfg.LLM.Active() {
+		llmClient, err := llm.NewClient(cfg.LLM)
+		if err != nil {
+			return err
+		}
+		cleaner = transcript.NewCleaner(llmClient, cfg.LLM.MaxInputChars)
+		logger.Info("transcript cleaning enabled", "model", llmClient.Model(), "base_url", cfg.LLM.BaseURL)
+	} else if cfg.LLM.Enabled {
+		logger.Info("transcript cleaning disabled: DEEPSEEK_API_KEY not set")
+	}
+
+	server := mcp.NewServer(cfg, searchClient, reader, mediaRunner, cleaner, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

@@ -309,6 +309,23 @@ func (r *Runner) ReadFile(_ context.Context, req types.ReadMediaFileRequest) (ty
 	return resp, nil
 }
 
+// WriteDerived writes derived data (such as a cleaned transcript) next to a
+// source file inside the sandbox, naming it from the source's stem plus suffix
+// (for example "video.en" + ".clean.txt"). The source path is validated so the
+// target always lands inside the output directory.
+func (r *Runner) WriteDerived(sourcePath, suffix string, data []byte) (types.MediaFile, error) {
+	src, err := r.resolveInOutput(sourcePath)
+	if err != nil {
+		return types.MediaFile{}, err
+	}
+	stem := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
+	target := filepath.Join(filepath.Dir(src), stem+suffix)
+	if err := os.WriteFile(target, data, 0o640); err != nil {
+		return types.MediaFile{}, err
+	}
+	return r.statFile(target)
+}
+
 func (r *Runner) withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if r.timeout <= 0 {
 		return context.WithCancel(ctx)

@@ -66,6 +66,29 @@ type ReadMediaFileRequest struct {
 	MaxBytes int64  `json:"max_bytes,omitempty"` // cap on returned bytes; clamped to a server ceiling
 }
 
+// CleanSubtitlesRequest is the input for the clean_subtitles tool. Path must
+// point at a subtitle/transcript file already inside the media output directory,
+// for example one returned by download_subtitles.
+type CleanSubtitlesRequest struct {
+	Path  string `json:"path"`
+	Topic string `json:"topic,omitempty"` // optional focus hint; off-topic material is removed
+	Save  bool   `json:"save,omitempty"`  // also write the cleaned text into the media directory
+}
+
+// CleanSubtitlesResponse is returned by the clean_subtitles tool. Content is the
+// cleaned transcript with intros, outros, ad/sponsor reads, and caption filler
+// removed while substantive on-topic content is preserved (not summarized).
+type CleanSubtitlesResponse struct {
+	SourcePath  string `json:"source_path"`
+	Topic       string `json:"topic,omitempty"`
+	Model       string `json:"model"`
+	Chunks      int    `json:"chunks"`
+	InputChars  int    `json:"input_chars"`
+	OutputChars int    `json:"output_chars"`
+	Content     string `json:"content"`
+	SavedPath   string `json:"saved_path,omitempty"`
+}
+
 // ReadMediaFileResponse returns the contents of a file in the media directory.
 // Encoding is "text" for valid UTF-8 (e.g. subtitles) or "base64" for binary.
 type ReadMediaFileResponse struct {

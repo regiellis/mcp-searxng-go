@@ -324,7 +324,7 @@ func newTestServer(t *testing.T, searxURL string) *Server {
 		BlockPrivateNetworks: false,
 		Policy:               security.NewDomainPolicy(nil, nil),
 	}), logger)
-	return NewServer(cfg, searchClient, reader, nil, logger)
+	return NewServer(cfg, searchClient, reader, nil, nil, logger)
 }
 
 func mapRequest(method string, params any) types.JSONRPCRequest {

@@ -19,10 +19,31 @@ type Config struct {
 	SearXNG  SearXNGConfig  `yaml:"searxng"`
 	Brave    BraveConfig    `yaml:"brave"`
 	Media    MediaConfig    `yaml:"media"`
+	LLM      LLMConfig      `yaml:"llm"`
 	Server   ServerConfig   `yaml:"server"`
 	Fetch    FetchConfig    `yaml:"fetch"`
 	Cache    CacheConfig    `yaml:"cache"`
 	Security SecurityConfig `yaml:"security"`
+}
+
+// LLMConfig configures the optional DeepSeek-backed transcript cleaning tool.
+// The API key is sourced from the DEEPSEEK_API_KEY environment variable rather
+// than this file so the secret is never committed. The endpoint is OpenAI/
+// DeepSeek chat-completions compatible.
+type LLMConfig struct {
+	Enabled       bool          `yaml:"enabled"`
+	APIKey        string        `yaml:"api_key"`
+	BaseURL       string        `yaml:"base_url"`
+	Model         string        `yaml:"model"`
+	Timeout       time.Duration `yaml:"timeout"`
+	MaxInputChars int           `yaml:"max_input_chars"` // per-request transcript chunk budget
+}
+
+// Active reports whether the transcript cleaning tool should be wired up.
+func (l LLMConfig) Active() bool {
+	return l.Enabled &&
+		strings.TrimSpace(l.APIKey) != "" &&
+		strings.TrimSpace(l.BaseURL) != ""
 }
 
 // MediaConfig configures the yt-dlp / ffmpeg backed media tools. All output is
@@ -117,6 +138,13 @@ func Default() Config {
 			YtDlpPath:  "yt-dlp",
 			FfmpegPath: "ffmpeg",
 			Timeout:    10 * time.Minute,
+		},
+		LLM: LLMConfig{
+			Enabled:       true,
+			BaseURL:       "https://api.deepseek.com",
+			Model:         "deepseek-v4-flash",
+			Timeout:       5 * time.Minute,
+			MaxInputChars: 48000,
 		},
 		Server: ServerConfig{
 			Mode:          "http",
@@ -235,6 +263,14 @@ func (c Config) Validate() error {
 			return errors.New("media.timeout must be positive")
 		}
 	}
+	if c.LLM.Active() {
+		if c.LLM.Timeout <= 0 {
+			return errors.New("llm.timeout must be positive")
+		}
+		if c.LLM.MaxInputChars <= 0 {
+			return errors.New("llm.max_input_chars must be positive")
+		}
+	}
 	return nil
 }
 
@@ -256,6 +292,15 @@ func applyEnv(cfg *Config) {
 	setString("MCP_MEDIA_YT_DLP_PATH", &cfg.Media.YtDlpPath)
 	setString("MCP_MEDIA_FFMPEG_PATH", &cfg.Media.FfmpegPath)
 	setDuration("MCP_MEDIA_TIMEOUT", &cfg.Media.Timeout)
+
+	// DEEPSEEK_API_KEY is the documented key name; the rest allow overriding the
+	// endpoint/model without editing config.yaml.
+	setBool("MCP_LLM_ENABLED", &cfg.LLM.Enabled)
+	setString("DEEPSEEK_API_KEY", &cfg.LLM.APIKey)
+	setString("MCP_LLM_BASE_URL", &cfg.LLM.BaseURL)
+	setString("MCP_LLM_MODEL", &cfg.LLM.Model)
+	setDuration("MCP_LLM_TIMEOUT", &cfg.LLM.Timeout)
+	setInt("MCP_LLM_MAX_INPUT_CHARS", &cfg.LLM.MaxInputChars)
 
 	setString("MCP_SERVER_MODE", &cfg.Server.Mode)
 	setString("MCP_SERVER_ADDRESS", &cfg.Server.Address)
