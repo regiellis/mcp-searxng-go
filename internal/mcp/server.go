@@ -515,6 +515,19 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 			return responseError(req.ID, errInternal, err.Error(), nil)
 		}
 		return s.toolResult(req.ID, result)
+	case "read_media_file":
+		var input types.ReadMediaFileRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid read_media_file arguments", map[string]any{"detail": err.Error()})
+		}
+		if s.media == nil {
+			return responseError(req.ID, errInvalidRequest, "media tools are disabled", nil)
+		}
+		result, err := s.media.ReadFile(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInternal, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
 	case "url_read":
 		var input types.URLReadRequest
 		if err := json.Unmarshal(params.Arguments, &input); err != nil {

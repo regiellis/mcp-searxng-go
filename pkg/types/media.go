@@ -57,3 +57,23 @@ type SubtitlesResponse struct {
 	SourceURL string      `json:"source_url"`
 	Files     []MediaFile `json:"files"`
 }
+
+// ReadMediaFileRequest is the input for the read_media_file tool. Path must point
+// at a file already inside the media output directory, for example a subtitle
+// returned by download_subtitles or a file produced by transcode_media.
+type ReadMediaFileRequest struct {
+	Path     string `json:"path"`
+	MaxBytes int64  `json:"max_bytes,omitempty"` // cap on returned bytes; clamped to a server ceiling
+}
+
+// ReadMediaFileResponse returns the contents of a file in the media directory.
+// Encoding is "text" for valid UTF-8 (e.g. subtitles) or "base64" for binary.
+type ReadMediaFileResponse struct {
+	Path      string `json:"path"`
+	Filename  string `json:"filename"`
+	Ext       string `json:"ext,omitempty"`
+	SizeBytes int64  `json:"size_bytes"`
+	Encoding  string `json:"encoding"`
+	Content   string `json:"content"`
+	Truncated bool   `json:"truncated,omitempty"`
+}

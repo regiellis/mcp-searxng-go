@@ -184,6 +184,55 @@ printf '%s\tExample Video\t1:02\n' "$f"
 	}
 }
 
+func TestReadFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	r := newRunner(t, config.MediaConfig{OutputDir: dir})
+
+	// Text file (e.g. a subtitle) is returned verbatim as UTF-8.
+	srt := "1\n00:00:01,000 --> 00:00:02,000\nHello\n"
+	if err := os.WriteFile(filepath.Join(dir, "video.en.srt"), []byte(srt), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := r.ReadFile(context.Background(), types.ReadMediaFileRequest{Path: "video.en.srt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Encoding != "text" || resp.Content != srt {
+		t.Fatalf("unexpected text read: encoding=%q content=%q", resp.Encoding, resp.Content)
+	}
+	if resp.Truncated {
+		t.Fatal("did not expect truncation")
+	}
+
+	// Binary content is base64-encoded.
+	bin := []byte{0x00, 0xff, 0xfe, 0x01}
+	if err := os.WriteFile(filepath.Join(dir, "blob.bin"), bin, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resp, err = r.ReadFile(context.Background(), types.ReadMediaFileRequest{Path: "blob.bin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Encoding != "base64" {
+		t.Fatalf("expected base64 encoding, got %q", resp.Encoding)
+	}
+
+	// max_bytes truncates and flags it.
+	resp, err = r.ReadFile(context.Background(), types.ReadMediaFileRequest{Path: "video.en.srt", MaxBytes: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.Truncated || len(resp.Content) != 5 {
+		t.Fatalf("expected truncated 5-byte content, got truncated=%v len=%d", resp.Truncated, len(resp.Content))
+	}
+
+	// Paths outside the sandbox are rejected.
+	if _, err := r.ReadFile(context.Background(), types.ReadMediaFileRequest{Path: "/etc/passwd"}); err == nil {
+		t.Fatal("expected sandbox rejection for outside path")
+	}
+}
+
 func TestPreflightReportsMissingBinaries(t *testing.T) {
 	t.Parallel()
 	r := newRunner(t, config.MediaConfig{YtDlpPath: "definitely-not-a-real-binary-xyz", FfmpegPath: "also-not-real-xyz"})

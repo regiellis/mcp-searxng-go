@@ -6,8 +6,10 @@ package media
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
@@ -16,9 +18,18 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/regiellis/mcp-searxng-go/internal/config"
 	"github.com/regiellis/mcp-searxng-go/pkg/types"
+)
+
+// Read size limits for ReadFile. The default keeps subtitle/text retrieval cheap
+// while the ceiling caps how much a single response can return regardless of the
+// caller-supplied max_bytes.
+const (
+	defaultReadLimit int64 = 1 << 20  // 1 MiB
+	maxReadLimit     int64 = 16 << 20 // 16 MiB
 )
 
 // URLGuard validates a URL's scheme and resolves its host against SSRF policy
@@ -235,6 +246,67 @@ func (r *Runner) Subtitles(ctx context.Context, req types.SubtitlesRequest) (typ
 		return types.SubtitlesResponse{}, fmt.Errorf("no subtitles found for language %q", lang)
 	}
 	return types.SubtitlesResponse{SourceURL: sourceURL, Files: files}, nil
+}
+
+// ReadFile returns the contents of a file inside the output directory so a
+// caller (for example an agent that only has the MCP channel and no shared
+// filesystem) can retrieve a downloaded subtitle or other produced file. Output
+// is UTF-8 text when possible, otherwise base64; reads are capped to defend the
+// caller's context window.
+func (r *Runner) ReadFile(_ context.Context, req types.ReadMediaFileRequest) (types.ReadMediaFileResponse, error) {
+	path, err := r.resolveInOutput(req.Path)
+	if err != nil {
+		return types.ReadMediaFileResponse{}, err
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return types.ReadMediaFileResponse{}, err
+	}
+	if info.IsDir() {
+		return types.ReadMediaFileResponse{}, fmt.Errorf("path %q is a directory", req.Path)
+	}
+
+	limit := req.MaxBytes
+	if limit <= 0 {
+		limit = defaultReadLimit
+	}
+	if limit > maxReadLimit {
+		limit = maxReadLimit
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return types.ReadMediaFileResponse{}, err
+	}
+	defer func() { _ = file.Close() }()
+
+	// Read one byte past the limit so we can flag truncation without loading the
+	// whole file into memory.
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return types.ReadMediaFileResponse{}, err
+	}
+	truncated := int64(len(data)) > limit
+	if truncated {
+		data = data[:limit]
+	}
+
+	resp := types.ReadMediaFileResponse{
+		Path:      path,
+		Filename:  info.Name(),
+		Ext:       strings.TrimPrefix(filepath.Ext(info.Name()), "."),
+		SizeBytes: info.Size(),
+		Truncated: truncated,
+	}
+	if utf8.Valid(data) {
+		resp.Encoding = "text"
+		resp.Content = string(data)
+	} else {
+		resp.Encoding = "base64"
+		resp.Content = base64.StdEncoding.EncodeToString(data)
+	}
+	return resp, nil
 }
 
 func (r *Runner) withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
