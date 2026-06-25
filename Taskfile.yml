@@ -8,6 +8,15 @@ vars:
   GO_BUILD_CACHE: "{{.CACHE_DIR}}/go-build"
   MAIN_PACKAGE: ./cmd/server
   GOFLAGS_REPRO: -trimpath -buildvcs=false
+  # Build metadata derived from git. Commit date (not build time) is used so the
+  # stamp stays reproducible for a given commit.
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo none
+  COMMIT_DATE:
+    sh: git show -s --format=%cI HEAD 2>/dev/null || echo unknown
+  LDFLAGS: -X main.version={{.VERSION}} -X main.commit={{.COMMIT}} -X main.date={{.COMMIT_DATE}}
 
 tasks:
   default:
@@ -28,7 +37,7 @@ tasks:
       - "{{.BUILD_DIR}}/{{.BINARY_NAME}}"
     cmds:
       - mkdir -p {{.BUILD_DIR}} {{.GO_BUILD_CACHE}}
-      - go build {{.GOFLAGS_REPRO}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+      - go build {{.GOFLAGS_REPRO}} -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
 
   run:
     desc: Run the server directly for a quick development loop
@@ -94,7 +103,7 @@ tasks:
       GOCACHE: "{{.GO_BUILD_CACHE}}"
     cmds:
       - mkdir -p {{.BUILD_DIR}} {{.GO_BUILD_CACHE}}
-      - go build {{.GOFLAGS_REPRO}} -ldflags="-s -w -buildid=" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+      - go build {{.GOFLAGS_REPRO}} -ldflags="-s -w -buildid= {{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
 
   docker:
     desc: Build a minimal distroless container image

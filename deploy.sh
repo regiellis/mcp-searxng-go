@@ -80,7 +80,14 @@ run_remote() {
 
 build_local() {
   mkdir -p "${ROOT_DIR}/.cache/go-build" "${ROOT_DIR}/build"
-  GOCACHE="${ROOT_DIR}/.cache/go-build" go build -trimpath -buildvcs=false -o "${LOCAL_BINARY}" ./cmd/server
+  local version commit date ldflags
+  version="$(git -C "${ROOT_DIR}" describe --tags --always --dirty 2>/dev/null || echo dev)"
+  commit="$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || echo none)"
+  # Commit date (not build time) keeps the build reproducible.
+  date="$(git -C "${ROOT_DIR}" show -s --format=%cI HEAD 2>/dev/null || echo unknown)"
+  ldflags="-X main.version=${version} -X main.commit=${commit} -X main.date=${date}"
+  echo "building ${BINARY_NAME} version=${version} commit=${commit}" >&2
+  GOCACHE="${ROOT_DIR}/.cache/go-build" go build -trimpath -buildvcs=false -ldflags "${ldflags}" -o "${LOCAL_BINARY}" ./cmd/server
 }
 
 ensure_local_files() {

@@ -24,7 +24,14 @@ import (
 	"github.com/regiellis/mcp-searxng-go/internal/transcript"
 )
 
-var version = "dev"
+// Build metadata, injected at build time via -ldflags. See deploy.sh and the
+// Taskfile build/release targets. Values are derived from git so builds remain
+// reproducible (commit date is used rather than wall-clock build time).
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
 
 func main() {
 	if err := run(); err != nil {
@@ -66,7 +73,7 @@ func run() error {
 	}
 
 	logger := newLogger(cfg.Server.LogLevel)
-	logger.Info("startup", "version", version, "mode", cfg.Server.Mode, "address", cfg.Server.Address, "searxng", cfg.SearXNG.BaseURL)
+	logger.Info("startup", "version", version, "commit", commit, "date", date, "mode", cfg.Server.Mode, "address", cfg.Server.Address, "searxng", cfg.SearXNG.BaseURL)
 
 	var searchOpts []search.Option
 	if cfg.Brave.Active() {
