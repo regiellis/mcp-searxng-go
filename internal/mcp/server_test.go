@@ -549,6 +549,23 @@ func TestAnswerSearchDefaultStaysDeterministic(t *testing.T) {
 	}
 }
 
+func TestLanguageSlug(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"Spanish":              "spanish",
+		"  French  ":           "french",
+		"zh-Hant":              "zh-hant",
+		"Brazilian Portuguese": "brazilian-portuguese",
+		"!!!":                  "translated",
+		"":                     "translated",
+	}
+	for in, want := range cases {
+		if got := languageSlug(in); got != want {
+			t.Fatalf("languageSlug(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func newTestServer(t *testing.T, searxURL string) *Server {
 	t.Helper()
 

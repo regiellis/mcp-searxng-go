@@ -63,6 +63,39 @@ func (f *fakeCompleter) Complete(_ context.Context, system, user string) (string
 
 func (f *fakeCompleter) Model() string { return "fake-model" }
 
+func TestTranslateProcessesAllChunksAndSetsLanguage(t *testing.T) {
+	t.Parallel()
+	fake := &fakeCompleter{}
+
+	raw := "1\n00:00:01,000 --> 00:00:02,000\n" + strings.Repeat("hola ", 30) + "\n"
+	resp, err := Translate(context.Background(), fake, raw, "  Spanish  ", 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.TargetLanguage != "Spanish" {
+		t.Fatalf("target language not trimmed/set: %q", resp.TargetLanguage)
+	}
+	if resp.Chunks < 2 || fake.calls != resp.Chunks {
+		t.Fatalf("expected calls==chunks>=2, got calls=%d chunks=%d", fake.calls, resp.Chunks)
+	}
+	if resp.Model != "fake-model" {
+		t.Fatalf("unexpected model: %q", resp.Model)
+	}
+	if !strings.Contains(fake.lastSys, "into Spanish") {
+		t.Fatalf("target language not injected into system prompt: %q", fake.lastSys)
+	}
+}
+
+func TestTranslateRejectsEmptyInputs(t *testing.T) {
+	t.Parallel()
+	if _, err := Translate(context.Background(), &fakeCompleter{}, "1\n00:00:01,000 --> 00:00:02,000\n\n", "French", 0); err == nil {
+		t.Fatal("expected error for transcript with no text")
+	}
+	if _, err := Translate(context.Background(), &fakeCompleter{}, "some text", "   ", 0); err == nil {
+		t.Fatal("expected error for missing target language")
+	}
+}
+
 func TestCleanProcessesAllChunks(t *testing.T) {
 	t.Parallel()
 	fake := &fakeCompleter{}

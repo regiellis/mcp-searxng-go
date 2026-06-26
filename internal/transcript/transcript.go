@@ -94,6 +94,52 @@ func (c *Cleaner) Clean(ctx context.Context, raw, topic string) (types.CleanSubt
 	}, nil
 }
 
+// translateSystemPrompt is templated with the target language (twice).
+const translateSystemPrompt = `You are a professional translator. Translate the transcript text the user provides into %[1]s. Preserve the full meaning and every substantive detail; do not summarize, shorten, omit, or add anything. Render the result as fluent, natural %[1]s with correct punctuation and readable paragraphing. Output only the translated text — no notes, transliteration, source text, headings, or markdown.`
+
+// Translate normalizes raw subtitle text and translates it into targetLanguage
+// via the LLM, processing long transcripts in order across multiple calls. It is
+// a standalone function (not tied to Cleaner) and takes any Completer, so the
+// server can reuse its shared LLM client. The returned response has SourcePath
+// and SavedPath left for the caller to populate. Output is translated prose, not
+// a re-timed subtitle file.
+func Translate(ctx context.Context, llm Completer, raw, targetLanguage string, maxInputChars int) (types.TranslateSubtitlesResponse, error) {
+	lang := strings.TrimSpace(targetLanguage)
+	if lang == "" {
+		return types.TranslateSubtitlesResponse{}, fmt.Errorf("target language is required")
+	}
+	normalized := Normalize(raw)
+	if strings.TrimSpace(normalized) == "" {
+		return types.TranslateSubtitlesResponse{}, fmt.Errorf("no transcript text found in input")
+	}
+	if maxInputChars <= 0 {
+		maxInputChars = defaultMaxInputChars
+	}
+
+	system := fmt.Sprintf(translateSystemPrompt, lang)
+	chunks := Chunk(normalized, maxInputChars)
+	parts := make([]string, 0, len(chunks))
+	for i, chunk := range chunks {
+		out, err := llm.Complete(ctx, system, chunk)
+		if err != nil {
+			return types.TranslateSubtitlesResponse{}, fmt.Errorf("translate chunk %d/%d: %w", i+1, len(chunks), err)
+		}
+		if out = strings.TrimSpace(out); out != "" {
+			parts = append(parts, out)
+		}
+	}
+
+	content := strings.Join(parts, "\n\n")
+	return types.TranslateSubtitlesResponse{
+		TargetLanguage: lang,
+		Model:          llm.Model(),
+		Chunks:         len(chunks),
+		InputChars:     len(normalized),
+		OutputChars:    len(content),
+		Content:        content,
+	}, nil
+}
+
 // Normalize converts SRT/VTT subtitle text into a single plaintext stream by
 // dropping cue indices, timestamps, headers, and inline tags, and collapsing the
 // consecutive duplicate lines that auto-generated captions emit.

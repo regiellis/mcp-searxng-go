@@ -308,6 +308,20 @@ func toolDefinitions() []types.ToolDefinition {
 			},
 		},
 		{
+			Name:        "translate_subtitles",
+			Description: "Translate a downloaded subtitle/transcript file into another language using an LLM, preserving the full meaning and substance (not a summary). Output is translated prose, not a re-timed subtitle file. Path must reference a file inside the media directory (e.g. from download_subtitles). The call may take a while for long transcripts. Requires DEEPSEEK_API_KEY.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path":            map[string]any{"type": "string", "description": "Path to a subtitle/transcript file inside the media output directory."},
+					"target_language": map[string]any{"type": "string", "description": "Language to translate into, e.g. \"Spanish\", \"French\", \"Japanese\"."},
+					"save":            map[string]any{"type": "boolean", "description": "Also write the translation to a .<language>.txt file in the media directory."},
+				},
+				"required":             []string{"path", "target_language"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "read_media_file",
 			Description: "Read the contents of a file inside the server media directory, such as a subtitle returned by download_subtitles. Returns UTF-8 text when possible, otherwise base64. Use this to retrieve files the other media tools saved server-side.",
 			InputSchema: map[string]any{

@@ -190,6 +190,30 @@ type MediaJobView struct {
 	Error     string     `json:"error,omitempty"`
 }
 
+// TranslateSubtitlesRequest is the input for the translate_subtitles tool. Path
+// must point at a subtitle/transcript file already inside the media output
+// directory, for example one returned by download_subtitles.
+type TranslateSubtitlesRequest struct {
+	Path           string `json:"path"`
+	TargetLanguage string `json:"target_language"`
+	Save           bool   `json:"save,omitempty"` // also write the translation into the media directory
+}
+
+// TranslateSubtitlesResponse is returned by the translate_subtitles tool.
+// Content is the transcript translated into the target language as fluent prose,
+// with the full meaning preserved (not summarized). It is translated text, not a
+// re-timed subtitle file.
+type TranslateSubtitlesResponse struct {
+	SourcePath     string `json:"source_path"`
+	TargetLanguage string `json:"target_language"`
+	Model          string `json:"model"`
+	Chunks         int    `json:"chunks"`
+	InputChars     int    `json:"input_chars"`
+	OutputChars    int    `json:"output_chars"`
+	Content        string `json:"content"`
+	SavedPath      string `json:"saved_path,omitempty"`
+}
+
 // ReadMediaFileResponse returns the contents of a file in the media directory.
 // Encoding is "text" for valid UTF-8 (e.g. subtitles) or "base64" for binary.
 type ReadMediaFileResponse struct {

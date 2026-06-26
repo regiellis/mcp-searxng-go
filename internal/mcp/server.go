@@ -581,6 +581,16 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 			return responseError(req.ID, errInternal, err.Error(), nil)
 		}
 		return s.toolResult(req.ID, result)
+	case "translate_subtitles":
+		var input types.TranslateSubtitlesRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid translate_subtitles arguments", map[string]any{"detail": err.Error()})
+		}
+		result, err := s.runTranslateSubtitles(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInternal, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
 	case "clean_subtitles":
 		var input types.CleanSubtitlesRequest
 		if err := json.Unmarshal(params.Arguments, &input); err != nil {
@@ -1272,6 +1282,74 @@ func (s *Server) runMediaOp(ctx context.Context, id any, kind string, async bool
 		return responseError(id, errInternal, err.Error(), nil)
 	}
 	return s.toolResult(id, result)
+}
+
+// runTranslateSubtitles reads a subtitle file from the media sandbox and
+// translates it into the requested language via the shared LLM client. Like
+// clean_subtitles it is an explicit, key-gated LLM tool; it needs both the media
+// runner (file access) and a synthesizer (the LLM).
+func (s *Server) runTranslateSubtitles(ctx context.Context, req types.TranslateSubtitlesRequest) (types.TranslateSubtitlesResponse, error) {
+	if s.media == nil {
+		return types.TranslateSubtitlesResponse{}, fmt.Errorf("media tools are disabled")
+	}
+	if s.synth == nil {
+		return types.TranslateSubtitlesResponse{}, fmt.Errorf("translation is disabled: set DEEPSEEK_API_KEY to enable it")
+	}
+	if strings.TrimSpace(req.TargetLanguage) == "" {
+		return types.TranslateSubtitlesResponse{}, fmt.Errorf("target_language is required")
+	}
+
+	file, err := s.media.ReadFile(ctx, types.ReadMediaFileRequest{Path: req.Path, MaxBytes: maxSubtitleBytes})
+	if err != nil {
+		return types.TranslateSubtitlesResponse{}, err
+	}
+	if file.Encoding != "text" {
+		return types.TranslateSubtitlesResponse{}, fmt.Errorf("%q is not a text subtitle file", req.Path)
+	}
+	if file.Truncated {
+		s.logger.Warn("subtitle truncated before translation", "path", file.Path, "limit", maxSubtitleBytes)
+	}
+
+	s.logger.Info("tool start", "tool", "translate_subtitles", "path", file.Path, "target_language", req.TargetLanguage)
+	result, err := transcript.Translate(ctx, s.synth, file.Content, req.TargetLanguage, s.cfg.LLM.MaxInputChars)
+	if err != nil {
+		s.logger.Error("tool failure", "tool", "translate_subtitles", "error", err)
+		return types.TranslateSubtitlesResponse{}, err
+	}
+	result.SourcePath = file.Path
+
+	if req.Save {
+		saved, saveErr := s.media.WriteDerived(req.Path, "."+languageSlug(req.TargetLanguage)+".txt", []byte(result.Content))
+		if saveErr != nil {
+			return types.TranslateSubtitlesResponse{}, fmt.Errorf("save translated transcript: %w", saveErr)
+		}
+		result.SavedPath = saved.Path
+	}
+
+	s.logger.Info("tool end", "tool", "translate_subtitles", "chunks", result.Chunks, "input_chars", result.InputChars, "output_chars", result.OutputChars)
+	return result, nil
+}
+
+// languageSlug reduces a target language label to a filename-safe token used as
+// the saved-file suffix (e.g. "Spanish" -> "spanish", "zh-Hant" -> "zh-hant").
+func languageSlug(lang string) string {
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(lang)) {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+			b.WriteRune(r)
+			lastDash = false
+		case !lastDash && b.Len() > 0:
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	slug := strings.Trim(b.String(), "-")
+	if slug == "" {
+		return "translated"
+	}
+	return slug
 }
 
 func (s *Server) toolResult(id any, payload any) types.JSONRPCResponse {
