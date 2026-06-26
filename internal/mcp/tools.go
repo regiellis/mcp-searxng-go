@@ -372,6 +372,34 @@ func toolDefinitions() []types.ToolDefinition {
 			},
 		},
 		{
+			Name:        "export_report",
+			Description: "Render a research report as markdown and save it to the storage directory, returning the file path and the rendered content. Pass an existing research session id to render that session (its notes become sections), or provide title/query/summary/sections/sources directly. Deterministic formatting, no LLM.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"id":      map[string]any{"type": "string", "description": "Research session id to render. Omit to render the provided fields instead."},
+					"title":   map[string]any{"type": "string", "description": "Report title (defaults to the session title or query)."},
+					"query":   map[string]any{"type": "string", "description": "The research question, shown near the top."},
+					"summary": map[string]any{"type": "string", "description": "Optional summary/answer section."},
+					"sections": map[string]any{
+						"type": "array",
+						"items": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"heading": map[string]any{"type": "string"},
+								"body":    map[string]any{"type": "string"},
+							},
+							"required":             []string{"heading", "body"},
+							"additionalProperties": false,
+						},
+						"description": "Optional headed content blocks.",
+					},
+					"sources": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Optional source URLs listed at the end."},
+				},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "media_job_status",
 			Description: "Check the status of a background media job started with async=true (download_video, transcode_media, or download_subtitles). Returns status (running, completed, or failed); when completed, the result field holds the same payload the tool would have returned synchronously.",
 			InputSchema: map[string]any{

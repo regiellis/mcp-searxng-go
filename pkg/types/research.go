@@ -51,3 +51,29 @@ type GetResearchRequest struct {
 type ListResearchResponse struct {
 	Sessions []ResearchSessionSummary `json:"sessions"`
 }
+
+// ReportSection is one headed block in an exported report.
+type ReportSection struct {
+	Heading string `json:"heading"`
+	Body    string `json:"body"`
+}
+
+// ExportReportRequest is the input for the export_report tool. With an id, the
+// named research session is rendered; otherwise the provided fields are used.
+type ExportReportRequest struct {
+	ID       string          `json:"id,omitempty"`
+	Title    string          `json:"title,omitempty"`
+	Query    string          `json:"query,omitempty"`
+	Summary  string          `json:"summary,omitempty"`
+	Sections []ReportSection `json:"sections,omitempty"`
+	Sources  []string        `json:"sources,omitempty"`
+}
+
+// ExportReportResponse is returned by the export_report tool. Content is the
+// rendered markdown (also written to Path inside the storage directory).
+type ExportReportResponse struct {
+	Path     string `json:"path"`
+	Filename string `json:"filename"`
+	Bytes    int    `json:"bytes"`
+	Content  string `json:"content"`
+}

@@ -188,6 +188,31 @@ func newSessionID() (string, error) {
 	return "rs_" + hex.EncodeToString(b), nil
 }
 
+func newReportSuffix() (string, error) {
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate report id: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// writeFile atomically writes a bare filename (no directory components) into the
+// storage directory and returns its full path. Caller holds the lock.
+func (s *Store) writeFile(name string, data []byte) (string, error) {
+	if name == "" || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		return "", fmt.Errorf("invalid report filename %q", name)
+	}
+	final := filepath.Join(s.dir, name)
+	tmp := final + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o640); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, final); err != nil {
+		return "", err
+	}
+	return final, nil
+}
+
 func mergeTags(existing, incoming []string) []string {
 	seen := make(map[string]struct{}, len(existing)+len(incoming))
 	out := make([]string, 0, len(existing)+len(incoming))

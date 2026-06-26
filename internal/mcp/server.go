@@ -649,6 +649,19 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 			return responseError(req.ID, errInternal, err.Error(), nil)
 		}
 		return s.toolResult(req.ID, types.ListResearchResponse{Sessions: sessions})
+	case "export_report":
+		var input types.ExportReportRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid export_report arguments", map[string]any{"detail": err.Error()})
+		}
+		if s.store == nil {
+			return responseError(req.ID, errInvalidRequest, "research storage is disabled", nil)
+		}
+		result, err := s.store.ExportReport(input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
 	default:
 		return responseError(req.ID, errMethodNotFound, "unknown tool", nil)
 	}
