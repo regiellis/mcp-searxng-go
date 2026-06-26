@@ -72,7 +72,7 @@ func run() error {
 		return err
 	}
 
-	logger := newLogger(cfg.Server.LogLevel)
+	logger := newLogger(cfg.Server.LogLevel, cfg.Server.Mode)
 	logger.Info("startup", "version", version, "commit", commit, "date", date, "mode", cfg.Server.Mode, "address", cfg.Server.Address, "searxng", cfg.SearXNG.BaseURL)
 
 	var searchOpts []search.Option
@@ -221,7 +221,7 @@ func addPath(urls []string, path string) []string {
 	return out
 }
 
-func newLogger(level string) *slog.Logger {
+func newLogger(level, mode string) *slog.Logger {
 	var slogLevel slog.Level
 	switch level {
 	case "debug":
@@ -233,5 +233,13 @@ func newLogger(level string) *slog.Logger {
 	default:
 		slogLevel = slog.LevelInfo
 	}
-	return slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slogLevel}))
+	// In stdio transport, stdout carries the MCP JSON-RPC frames, so structured
+	// logs must go to stderr to avoid corrupting the protocol. In http mode
+	// stdout is free, and emitting structured logs there is the conventional
+	// place a process/service collector expects them.
+	out := os.Stderr
+	if mode == "http" {
+		out = os.Stdout
+	}
+	return slog.New(slog.NewJSONHandler(out, &slog.HandlerOptions{Level: slogLevel}))
 }
