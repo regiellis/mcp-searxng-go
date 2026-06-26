@@ -21,6 +21,7 @@ import (
 	"github.com/regiellis/mcp-searxng-go/internal/media"
 	"github.com/regiellis/mcp-searxng-go/internal/search"
 	"github.com/regiellis/mcp-searxng-go/internal/security"
+	"github.com/regiellis/mcp-searxng-go/internal/store"
 	"github.com/regiellis/mcp-searxng-go/pkg/types"
 )
 
@@ -430,7 +431,7 @@ func newMediaTestServer(t *testing.T, mediaDir, ytDlpPath string) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewServer(cfg, searchClient, reader, runner, nil, nil, logger)
+	return NewServer(cfg, searchClient, reader, runner, nil, nil, nil, logger)
 }
 
 // fakeSynth is a stub Synthesizer that records its prompt and returns a fixed reply.
@@ -566,6 +567,64 @@ func TestLanguageSlug(t *testing.T) {
 	}
 }
 
+func TestResearchStoreRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer(t, "https://example.com")
+	st, err := store.NewStore(t.TempDir(), slog.New(slog.NewTextHandler(ioDiscard{}, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.store = st
+
+	// Create a session.
+	created, err := server.store.SaveResearch(types.SaveResearchRequest{Title: "Roundtrip", Note: "one"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Append via the handler path.
+	resp := server.handle(context.Background(), mapRequest("tools/call", map[string]any{
+		"name":      "save_research",
+		"arguments": map[string]any{"id": created.ID, "note": "two"},
+	}))
+	if resp.Error != nil {
+		t.Fatalf("save_research append errored: %#v", resp.Error)
+	}
+
+	// get_research returns both notes.
+	getResp := server.handle(context.Background(), mapRequest("tools/call", map[string]any{
+		"name":      "get_research",
+		"arguments": map[string]any{"id": created.ID},
+	}))
+	payload, _ := json.Marshal(getResp.Result)
+	if !bytes.Contains(payload, []byte(`"one"`)) || !bytes.Contains(payload, []byte(`"two"`)) {
+		t.Fatalf("expected both notes in get_research: %s", payload)
+	}
+
+	// list_research includes the session.
+	listResp := server.handle(context.Background(), mapRequest("tools/call", map[string]any{
+		"name":      "list_research",
+		"arguments": map[string]any{},
+	}))
+	listPayload, _ := json.Marshal(listResp.Result)
+	if !bytes.Contains(listPayload, []byte(created.ID)) {
+		t.Fatalf("expected session id in list_research: %s", listPayload)
+	}
+}
+
+func TestResearchToolsDisabledWithoutStore(t *testing.T) {
+	t.Parallel()
+	server := newTestServer(t, "https://example.com") // store is nil
+	resp := server.handle(context.Background(), mapRequest("tools/call", map[string]any{
+		"name":      "list_research",
+		"arguments": map[string]any{},
+	}))
+	if resp.Error == nil {
+		t.Fatal("expected error when storage is disabled")
+	}
+}
+
 func newTestServer(t *testing.T, searxURL string) *Server {
 	t.Helper()
 
@@ -583,7 +642,7 @@ func newTestServer(t *testing.T, searxURL string) *Server {
 		BlockPrivateNetworks: false,
 		Policy:               security.NewDomainPolicy(nil, nil),
 	}), logger)
-	return NewServer(cfg, searchClient, reader, nil, nil, nil, logger)
+	return NewServer(cfg, searchClient, reader, nil, nil, nil, nil, logger)
 }
 
 func mapRequest(method string, params any) types.JSONRPCRequest {

@@ -69,3 +69,9 @@ security:
   block_private_networks: false
   allow_domains: []
   deny_domains: []
+
+# Persistent storage for research sessions (save_research/get_research/
+# list_research) and exported reports. All files stay inside dir.
+storage:
+  enabled: true
+  dir: "data"

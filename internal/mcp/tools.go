@@ -335,6 +335,43 @@ func toolDefinitions() []types.ToolDefinition {
 			},
 		},
 		{
+			Name:        "save_research",
+			Description: "Persist or append to a research session: a titled, timestamped record of an investigation that survives across calls. Omit id to start a new session (returns its id); pass an existing id to append a note and update title/query/tags. Deterministic, no LLM.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"id":      map[string]any{"type": "string", "description": "Existing session id to append to. Omit to create a new session."},
+					"title":   map[string]any{"type": "string", "description": "Session title (set on create; updates an existing session when provided)."},
+					"query":   map[string]any{"type": "string", "description": "The research question or query this session is about."},
+					"note":    map[string]any{"type": "string", "description": "A finding or note to append as a timestamped entry."},
+					"sources": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Optional supporting URLs for this note."},
+					"tags":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Optional tags merged into the session."},
+				},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "get_research",
+			Description: "Retrieve a stored research session by id, including all its timestamped notes and sources.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"id": map[string]any{"type": "string", "description": "The research session id (from save_research or list_research)."},
+				},
+				"required":             []string{"id"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "list_research",
+			Description: "List stored research sessions (id, title, query, tags, note count, last updated), newest first.",
+			InputSchema: map[string]any{
+				"type":                 "object",
+				"properties":           map[string]any{},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "media_job_status",
 			Description: "Check the status of a background media job started with async=true (download_video, transcode_media, or download_subtitles). Returns status (running, completed, or failed); when completed, the result field holds the same payload the tool would have returned synchronously.",
 			InputSchema: map[string]any{

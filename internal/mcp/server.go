@@ -22,6 +22,7 @@ import (
 	"github.com/regiellis/mcp-searxng-go/internal/fetch"
 	"github.com/regiellis/mcp-searxng-go/internal/media"
 	"github.com/regiellis/mcp-searxng-go/internal/search"
+	"github.com/regiellis/mcp-searxng-go/internal/store"
 	"github.com/regiellis/mcp-searxng-go/internal/transcript"
 	"github.com/regiellis/mcp-searxng-go/pkg/types"
 )
@@ -43,6 +44,7 @@ type Server struct {
 	jobs        *media.JobManager
 	cleaner     *transcript.Cleaner
 	synth       Synthesizer
+	store       *store.Store
 	logger      *slog.Logger
 	searchCache *cache.TTLCache[types.SearchResponse]
 	readCache   *cache.TTLCache[types.URLReadResponse]
@@ -52,7 +54,7 @@ type Server struct {
 // NewServer returns a configured MCP server. mediaRunner and cleaner may each be
 // nil, in which case the tools depending on them are advertised but report that
 // they are disabled.
-func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Reader, mediaRunner *media.Runner, cleaner *transcript.Cleaner, synth Synthesizer, logger *slog.Logger) *Server {
+func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Reader, mediaRunner *media.Runner, cleaner *transcript.Cleaner, synth Synthesizer, researchStore *store.Store, logger *slog.Logger) *Server {
 	s := &Server{
 		cfg:         cfg,
 		search:      searchClient,
@@ -60,6 +62,7 @@ func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Rea
 		media:       mediaRunner,
 		cleaner:     cleaner,
 		synth:       synth,
+		store:       researchStore,
 		logger:      logger,
 		searchCache: cache.New[types.SearchResponse](cfg.Cache.MaxEntries),
 		readCache:   cache.New[types.URLReadResponse](cfg.Cache.MaxEntries),
@@ -611,6 +614,41 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 			return responseError(req.ID, errInvalidParams, err.Error(), nil)
 		}
 		return s.toolResult(req.ID, result)
+	case "save_research":
+		var input types.SaveResearchRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid save_research arguments", map[string]any{"detail": err.Error()})
+		}
+		if s.store == nil {
+			return responseError(req.ID, errInvalidRequest, "research storage is disabled", nil)
+		}
+		result, err := s.store.SaveResearch(input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "get_research":
+		var input types.GetResearchRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid get_research arguments", map[string]any{"detail": err.Error()})
+		}
+		if s.store == nil {
+			return responseError(req.ID, errInvalidRequest, "research storage is disabled", nil)
+		}
+		result, err := s.store.GetResearch(input.ID)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "list_research":
+		if s.store == nil {
+			return responseError(req.ID, errInvalidRequest, "research storage is disabled", nil)
+		}
+		sessions, err := s.store.ListResearch()
+		if err != nil {
+			return responseError(req.ID, errInternal, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, types.ListResearchResponse{Sessions: sessions})
 	default:
 		return responseError(req.ID, errMethodNotFound, "unknown tool", nil)
 	}

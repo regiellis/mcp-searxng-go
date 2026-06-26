@@ -24,6 +24,14 @@ type Config struct {
 	Fetch    FetchConfig    `yaml:"fetch"`
 	Cache    CacheConfig    `yaml:"cache"`
 	Security SecurityConfig `yaml:"security"`
+	Storage  StorageConfig  `yaml:"storage"`
+}
+
+// StorageConfig configures on-disk persistence for research sessions and
+// exported reports. All files are confined to Dir.
+type StorageConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Dir     string `yaml:"dir"`
 }
 
 // LLMConfig configures the optional DeepSeek-backed transcript cleaning tool.
@@ -174,6 +182,10 @@ func Default() Config {
 		Security: SecurityConfig{
 			BlockPrivateNetworks: false,
 		},
+		Storage: StorageConfig{
+			Enabled: true,
+			Dir:     "data",
+		},
 	}
 }
 
@@ -270,6 +282,9 @@ func (c Config) Validate() error {
 			return errors.New("media.timeout must be positive")
 		}
 	}
+	if c.Storage.Enabled && strings.TrimSpace(c.Storage.Dir) == "" {
+		return errors.New("storage.dir is required when storage is enabled")
+	}
 	if c.LLM.Active() {
 		if c.LLM.Timeout <= 0 {
 			return errors.New("llm.timeout must be positive")
@@ -332,6 +347,9 @@ func applyEnv(cfg *Config) {
 	setBool("MCP_SECURITY_BLOCK_PRIVATE_NETWORKS", &cfg.Security.BlockPrivateNetworks)
 	setCSV("MCP_SECURITY_ALLOW_DOMAINS", &cfg.Security.AllowDomains)
 	setCSV("MCP_SECURITY_DENY_DOMAINS", &cfg.Security.DenyDomains)
+
+	setBool("MCP_STORAGE_ENABLED", &cfg.Storage.Enabled)
+	setString("MCP_STORAGE_DIR", &cfg.Storage.Dir)
 }
 
 func setString(key string, target *string) {

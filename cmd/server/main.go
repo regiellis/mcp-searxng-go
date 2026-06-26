@@ -21,6 +21,7 @@ import (
 	"github.com/regiellis/mcp-searxng-go/internal/media"
 	"github.com/regiellis/mcp-searxng-go/internal/search"
 	"github.com/regiellis/mcp-searxng-go/internal/security"
+	"github.com/regiellis/mcp-searxng-go/internal/store"
 	"github.com/regiellis/mcp-searxng-go/internal/transcript"
 )
 
@@ -126,7 +127,16 @@ func run() error {
 		logger.Info("llm features disabled: DEEPSEEK_API_KEY not set")
 	}
 
-	server := mcp.NewServer(cfg, searchClient, reader, mediaRunner, cleaner, synth, logger)
+	var researchStore *store.Store
+	if cfg.Storage.Enabled {
+		researchStore, err = store.NewStore(cfg.Storage.Dir, logger)
+		if err != nil {
+			return err
+		}
+		logger.Info("research storage enabled", "dir", researchStore.Dir())
+	}
+
+	server := mcp.NewServer(cfg, searchClient, reader, mediaRunner, cleaner, synth, researchStore, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
