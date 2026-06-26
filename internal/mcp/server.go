@@ -32,6 +32,7 @@ type Server struct {
 	search      *search.Client
 	reader      *fetch.Reader
 	media       *media.Runner
+	jobs        *media.JobManager
 	cleaner     *transcript.Cleaner
 	logger      *slog.Logger
 	searchCache *cache.TTLCache[types.SearchResponse]
@@ -43,7 +44,7 @@ type Server struct {
 // nil, in which case the tools depending on them are advertised but report that
 // they are disabled.
 func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Reader, mediaRunner *media.Runner, cleaner *transcript.Cleaner, logger *slog.Logger) *Server {
-	return &Server{
+	s := &Server{
 		cfg:         cfg,
 		search:      searchClient,
 		reader:      reader,
@@ -54,6 +55,11 @@ func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Rea
 		readCache:   cache.New[types.URLReadResponse](cfg.Cache.MaxEntries),
 		sem:         make(chan struct{}, 8),
 	}
+	// Background-job support is only meaningful when the media tools exist.
+	if mediaRunner != nil {
+		s.jobs = media.NewJobManager(cfg.Media.Timeout, logger)
+	}
+	return s
 }
 
 // ServeStdio serves framed MCP messages over stdio.
@@ -488,11 +494,9 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 		if s.media == nil {
 			return responseError(req.ID, errInvalidRequest, "media tools are disabled", nil)
 		}
-		result, err := s.media.Download(ctx, input)
-		if err != nil {
-			return responseError(req.ID, errInternal, err.Error(), nil)
-		}
-		return s.toolResult(req.ID, result)
+		return s.runMediaOp(ctx, req.ID, "download_video", input.Async, func(c context.Context) (any, error) {
+			return s.media.Download(c, input)
+		})
 	case "transcode_media":
 		var input types.TranscodeRequest
 		if err := json.Unmarshal(params.Arguments, &input); err != nil {
@@ -501,11 +505,9 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 		if s.media == nil {
 			return responseError(req.ID, errInvalidRequest, "media tools are disabled", nil)
 		}
-		result, err := s.media.Transcode(ctx, input)
-		if err != nil {
-			return responseError(req.ID, errInternal, err.Error(), nil)
-		}
-		return s.toolResult(req.ID, result)
+		return s.runMediaOp(ctx, req.ID, "transcode_media", input.Async, func(c context.Context) (any, error) {
+			return s.media.Transcode(c, input)
+		})
 	case "download_subtitles":
 		var input types.SubtitlesRequest
 		if err := json.Unmarshal(params.Arguments, &input); err != nil {
@@ -514,11 +516,25 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 		if s.media == nil {
 			return responseError(req.ID, errInvalidRequest, "media tools are disabled", nil)
 		}
-		result, err := s.media.Subtitles(ctx, input)
-		if err != nil {
-			return responseError(req.ID, errInternal, err.Error(), nil)
+		return s.runMediaOp(ctx, req.ID, "download_subtitles", input.Async, func(c context.Context) (any, error) {
+			return s.media.Subtitles(c, input)
+		})
+	case "media_job_status":
+		var input types.MediaJobStatusRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid media_job_status arguments", map[string]any{"detail": err.Error()})
 		}
-		return s.toolResult(req.ID, result)
+		if s.media == nil || s.jobs == nil {
+			return responseError(req.ID, errInvalidRequest, "media tools are disabled", nil)
+		}
+		if strings.TrimSpace(input.JobID) == "" {
+			return responseError(req.ID, errInvalidParams, "job_id is required", nil)
+		}
+		view, ok := s.jobs.Get(input.JobID)
+		if !ok {
+			return responseError(req.ID, errInvalidParams, "unknown job_id", map[string]any{"job_id": input.JobID})
+		}
+		return s.toolResult(req.ID, view)
 	case "transcript_chapters":
 		var input types.TranscriptChaptersRequest
 		if err := json.Unmarshal(params.Arguments, &input); err != nil {
@@ -1172,6 +1188,26 @@ func (s *Server) runTranscriptChapters(ctx context.Context, req types.Transcript
 
 	s.logger.Info("tool end", "tool", "transcript_chapters", "cues", result.CueCount, "chapters", result.ChapterCount)
 	return result, nil
+}
+
+// runMediaOp runs a media operation synchronously, or — when async is set —
+// submits it as a background job and returns a job view to poll via
+// media_job_status. The background job uses its own context, so it continues
+// after this tool call returns.
+func (s *Server) runMediaOp(ctx context.Context, id any, kind string, async bool, fn func(context.Context) (any, error)) types.JSONRPCResponse {
+	if async {
+		view, err := s.jobs.Submit(kind, fn)
+		if err != nil {
+			return responseError(id, errInternal, err.Error(), nil)
+		}
+		s.logger.Info("media job submitted", "tool", kind, "job_id", view.JobID)
+		return s.toolResult(id, view)
+	}
+	result, err := fn(ctx)
+	if err != nil {
+		return responseError(id, errInternal, err.Error(), nil)
+	}
+	return s.toolResult(id, result)
 }
 
 func (s *Server) toolResult(id any, payload any) types.JSONRPCResponse {

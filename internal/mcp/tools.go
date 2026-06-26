@@ -218,13 +218,14 @@ func toolDefinitions() []types.ToolDefinition {
 		},
 		{
 			Name:        "download_video",
-			Description: "Download a video (or its audio) at best quality via yt-dlp into the server media directory. Returns the saved file path and metadata.",
+			Description: "Download a video (or its audio) at best quality via yt-dlp into the server media directory. Returns the saved file path and metadata. This can take a while for large videos; pass async=true to run it in the background and get a job_id to poll with media_job_status instead of blocking.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"url":        map[string]any{"type": "string", "format": "uri"},
 					"format":     map[string]any{"type": "string", "description": "Optional yt-dlp -f format selector; defaults to best video+audio."},
 					"audio_only": map[string]any{"type": "boolean", "description": "Extract best audio as mp3 instead of video."},
+					"async":      map[string]any{"type": "boolean", "description": "Run in the background and return a job_id immediately; poll media_job_status for the result."},
 				},
 				"required":             []string{"url"},
 				"additionalProperties": false,
@@ -232,7 +233,7 @@ func toolDefinitions() []types.ToolDefinition {
 		},
 		{
 			Name:        "transcode_media",
-			Description: "Convert or compress a media file already in the server media directory using ffmpeg. Path must reference a file inside that directory.",
+			Description: "Convert or compress a media file already in the server media directory using ffmpeg. Path must reference a file inside that directory. Transcoding can take a while; pass async=true to run it in the background and get a job_id to poll with media_job_status instead of blocking.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -243,6 +244,7 @@ func toolDefinitions() []types.ToolDefinition {
 					"crf":         map[string]any{"type": "integer", "minimum": 0, "maximum": 51, "description": "Constant rate factor (lower = higher quality)."},
 					"max_width":   map[string]any{"type": "integer", "minimum": 1, "description": "Downscale so width does not exceed this value."},
 					"output_name": map[string]any{"type": "string", "description": "Optional output base filename (no directories)."},
+					"async":       map[string]any{"type": "boolean", "description": "Run in the background and return a job_id immediately; poll media_job_status for the result."},
 				},
 				"required":             []string{"path"},
 				"additionalProperties": false,
@@ -250,7 +252,7 @@ func toolDefinitions() []types.ToolDefinition {
 		},
 		{
 			Name:        "download_subtitles",
-			Description: "Download subtitle/caption tracks for a video URL via yt-dlp and save them to the server media directory for further work.",
+			Description: "Download subtitle/caption tracks for a video URL via yt-dlp and save them to the server media directory for further work. This can take a while; pass async=true to run it in the background and get a job_id to poll with media_job_status instead of blocking.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -258,6 +260,7 @@ func toolDefinitions() []types.ToolDefinition {
 					"language":       map[string]any{"type": "string", "description": "Subtitle language selector (yt-dlp --sub-langs). Default en."},
 					"format":         map[string]any{"type": "string", "description": "Convert subtitles to this format, e.g. srt, vtt. Default srt."},
 					"auto_generated": map[string]any{"type": "boolean", "description": "Include auto-generated captions when no human subtitles exist."},
+					"async":          map[string]any{"type": "boolean", "description": "Run in the background and return a job_id immediately; poll media_job_status for the result."},
 				},
 				"required":             []string{"url"},
 				"additionalProperties": false,
@@ -314,6 +317,18 @@ func toolDefinitions() []types.ToolDefinition {
 					"max_bytes": map[string]any{"type": "integer", "minimum": 1, "description": "Optional cap on bytes returned; clamped to a server ceiling. Default 1 MiB."},
 				},
 				"required":             []string{"path"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "media_job_status",
+			Description: "Check the status of a background media job started with async=true (download_video, transcode_media, or download_subtitles). Returns status (running, completed, or failed); when completed, the result field holds the same payload the tool would have returned synchronously.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"job_id": map[string]any{"type": "string", "description": "The job_id returned when a media tool was called with async=true."},
+				},
+				"required":             []string{"job_id"},
 				"additionalProperties": false,
 			},
 		},

@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -14,6 +17,7 @@ import (
 
 	"github.com/regiellis/mcp-searxng-go/internal/config"
 	"github.com/regiellis/mcp-searxng-go/internal/fetch"
+	"github.com/regiellis/mcp-searxng-go/internal/media"
 	"github.com/regiellis/mcp-searxng-go/internal/search"
 	"github.com/regiellis/mcp-searxng-go/internal/security"
 	"github.com/regiellis/mcp-searxng-go/pkg/types"
@@ -305,6 +309,127 @@ func TestStdioInvalidMethod(t *testing.T) {
 	if !bytes.Contains(out.Bytes(), []byte(`"code":-32601`)) {
 		t.Fatalf("expected method not found, got %s", out.String())
 	}
+}
+
+func TestDownloadSubtitlesAsyncJob(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell stub not supported on windows")
+	}
+
+	mediaDir := t.TempDir()
+	// Stub yt-dlp: find the -P output dir and drop a subtitle file there.
+	stub := filepath.Join(t.TempDir(), "yt-dlp")
+	script := "#!/bin/sh\n" + `outdir="."
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-P" ]; then outdir="$a"; fi
+  prev="$a"
+done
+printf 'WEBVTT\n\n00:00:00.000 --> 00:00:02.000\nhello\n' > "$outdir/video.en.srt"
+`
+	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// A local server stands in for the video URL so the SSRF guard resolves a
+	// loopback host instead of reaching the network; the stub ignores the URL.
+	src := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer src.Close()
+
+	server := newMediaTestServer(t, mediaDir, stub)
+
+	submit := server.handle(context.Background(), mapRequest("tools/call", map[string]any{
+		"name":      "download_subtitles",
+		"arguments": map[string]any{"url": src.URL, "async": true},
+	}))
+	view := mediaJobView(t, submit)
+	if view.JobID == "" || view.Status != "running" || view.Message == "" {
+		t.Fatalf("expected a running job with poll hint, got %#v", view)
+	}
+
+	// Poll media_job_status until the background job completes.
+	deadline := time.Now().Add(3 * time.Second)
+	var final types.MediaJobView
+	for time.Now().Before(deadline) {
+		status := server.handle(context.Background(), mapRequest("tools/call", map[string]any{
+			"name":      "media_job_status",
+			"arguments": map[string]any{"job_id": view.JobID},
+		}))
+		final = mediaJobView(t, status)
+		if final.Status != "running" {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if final.Status != "completed" {
+		t.Fatalf("expected completed job, got %#v", final)
+	}
+
+	// The completed result carries the same payload the sync call would return.
+	resultBytes, _ := json.Marshal(final.Result)
+	var subs types.SubtitlesResponse
+	if err := json.Unmarshal(resultBytes, &subs); err != nil {
+		t.Fatalf("decode result: %v", err)
+	}
+	if len(subs.Files) != 1 || subs.Files[0].Filename != "video.en.srt" {
+		t.Fatalf("unexpected subtitle files: %#v", subs.Files)
+	}
+
+	// An unknown job id is reported as an error.
+	unknown := server.handle(context.Background(), mapRequest("tools/call", map[string]any{
+		"name":      "media_job_status",
+		"arguments": map[string]any{"job_id": "j_nope"},
+	}))
+	if unknown.Error == nil {
+		t.Fatal("expected error for unknown job_id")
+	}
+}
+
+// mediaJobView pulls the MediaJobView out of a tools/call response.
+func mediaJobView(t *testing.T, resp types.JSONRPCResponse) types.MediaJobView {
+	t.Helper()
+	if resp.Error != nil {
+		t.Fatalf("unexpected error response: %#v", resp.Error)
+	}
+	result, ok := resp.Result.(map[string]any)
+	if !ok {
+		t.Fatalf("result is not a map: %#v", resp.Result)
+	}
+	view, ok := result["structuredContent"].(types.MediaJobView)
+	if !ok {
+		t.Fatalf("structuredContent is not a MediaJobView: %#v", result["structuredContent"])
+	}
+	return view
+}
+
+func newMediaTestServer(t *testing.T, mediaDir, ytDlpPath string) *Server {
+	t.Helper()
+
+	logger := slog.New(slog.NewTextHandler(ioDiscard{}, nil))
+	cfg := config.Default()
+	cfg.SearXNG.BaseURL = "https://example.com"
+	cfg.Fetch.Timeout = time.Second
+	cfg.Security.BlockPrivateNetworks = false
+	cfg.Media.OutputDir = mediaDir
+	cfg.Media.YtDlpPath = ytDlpPath
+	cfg.Media.Timeout = 30 * time.Second
+
+	searchClient, err := search.NewClient(cfg.SearXNG, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	validator := fetch.NewURLValidator(cfg.Fetch.AllowedSchemes, security.NetworkGuard{
+		BlockPrivateNetworks: false,
+		Policy:               security.NewDomainPolicy(nil, nil),
+	})
+	reader := fetch.NewReader(cfg.Fetch, validator, logger)
+	runner, err := media.NewRunner(cfg.Media, validator, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return NewServer(cfg, searchClient, reader, runner, nil, logger)
 }
 
 func newTestServer(t *testing.T, searxURL string) *Server {
