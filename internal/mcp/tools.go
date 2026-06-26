@@ -112,7 +112,7 @@ func toolDefinitions() []types.ToolDefinition {
 		},
 		{
 			Name:        "answer_search",
-			Description: "Search, read the top sources, and return a compact answer-oriented summary packet.",
+			Description: "Search, read the top sources, and return a compact answer-oriented summary packet. Deterministic by default (no LLM). Pass synthesize=true to additionally compose a written, cited answer from the read sources via the LLM (requires DEEPSEEK_API_KEY).",
 			InputSchema: answerSearchSchema(),
 		},
 		{
@@ -401,6 +401,7 @@ func answerSearchSchema() map[string]any {
 			"limit":       map[string]any{"type": "integer", "minimum": 1},
 			"read_top_n":  map[string]any{"type": "integer", "minimum": 1},
 			"max_summary": map[string]any{"type": "integer", "minimum": 1},
+			"synthesize":  map[string]any{"type": "boolean", "description": "Also compose a written, cited answer from the read sources via the LLM. Requires DEEPSEEK_API_KEY; off by default."},
 		},
 		"required":             []string{"query"},
 		"additionalProperties": false,

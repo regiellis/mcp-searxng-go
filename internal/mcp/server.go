@@ -26,6 +26,14 @@ import (
 	"github.com/regiellis/mcp-searxng-go/pkg/types"
 )
 
+// Synthesizer composes a written answer from source text using an LLM. It is nil
+// when no API key is configured, in which case answer_search with
+// synthesize=true reports that synthesis is disabled.
+type Synthesizer interface {
+	Complete(ctx context.Context, system, user string) (string, error)
+	Model() string
+}
+
 // Server handles stdio and HTTP MCP requests.
 type Server struct {
 	cfg         config.Config
@@ -34,6 +42,7 @@ type Server struct {
 	media       *media.Runner
 	jobs        *media.JobManager
 	cleaner     *transcript.Cleaner
+	synth       Synthesizer
 	logger      *slog.Logger
 	searchCache *cache.TTLCache[types.SearchResponse]
 	readCache   *cache.TTLCache[types.URLReadResponse]
@@ -43,13 +52,14 @@ type Server struct {
 // NewServer returns a configured MCP server. mediaRunner and cleaner may each be
 // nil, in which case the tools depending on them are advertised but report that
 // they are disabled.
-func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Reader, mediaRunner *media.Runner, cleaner *transcript.Cleaner, logger *slog.Logger) *Server {
+func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Reader, mediaRunner *media.Runner, cleaner *transcript.Cleaner, synth Synthesizer, logger *slog.Logger) *Server {
 	s := &Server{
 		cfg:         cfg,
 		search:      searchClient,
 		reader:      reader,
 		media:       mediaRunner,
 		cleaner:     cleaner,
+		synth:       synth,
 		logger:      logger,
 		searchCache: cache.New[types.SearchResponse](cfg.Cache.MaxEntries),
 		readCache:   cache.New[types.URLReadResponse](cfg.Cache.MaxEntries),
@@ -783,7 +793,7 @@ func (s *Server) runRecentSearch(ctx context.Context, req types.SearchRequest) (
 }
 
 func (s *Server) runAnswerSearch(ctx context.Context, req types.AnswerSearchRequest) (types.AnswerSearchResponse, error) {
-	searchResp, notes, err := s.searchAndReadNotes(ctx, "answer_search", types.SearchRequest{
+	searchResp, sources, err := s.searchAndCapture(ctx, "answer_search", types.SearchRequest{
 		Query:     req.Query,
 		Language:  req.Language,
 		TimeRange: req.TimeRange,
@@ -792,18 +802,72 @@ func (s *Server) runAnswerSearch(ctx context.Context, req types.AnswerSearchRequ
 	if err != nil {
 		return types.AnswerSearchResponse{}, err
 	}
+	notes := notesOf(sources)
 	maxSummary := req.MaxSummary
 	if maxSummary <= 0 {
 		maxSummary = 3
 	}
-	summary := summarizeNotes(notes, maxSummary)
-	return types.AnswerSearchResponse{
+	resp := types.AnswerSearchResponse{
 		Query:    strings.TrimSpace(req.Query),
-		Summary:  summary,
+		Summary:  summarizeNotes(notes, maxSummary),
 		Search:   searchResp,
 		ReadTopN: normalizeReadCount(req.ReadTopN, 3),
 		Sources:  notes,
-	}, nil
+	}
+
+	// Synthesis is an explicit opt-in (see the LLM-opt-in rule): the default
+	// response above is fully deterministic and needs no API key.
+	if req.Synthesize {
+		if s.synth == nil {
+			return types.AnswerSearchResponse{}, fmt.Errorf("synthesis is disabled: set DEEPSEEK_API_KEY to enable synthesize=true")
+		}
+		s.logger.Info("tool start", "tool", "answer_search.synthesize", "sources", len(sources))
+		answer, model, synthErr := s.synthesizeAnswer(ctx, req.Query, sources)
+		if synthErr != nil {
+			s.logger.Error("tool failure", "tool", "answer_search.synthesize", "error", synthErr)
+			return types.AnswerSearchResponse{}, synthErr
+		}
+		resp.Answer = answer
+		resp.AnswerModel = model
+	}
+	return resp, nil
+}
+
+// answerSystemPrompt instructs the model to answer strictly from the supplied
+// sources with inline citations and no fabrication.
+const answerSystemPrompt = `You are a research assistant. Answer the user's question using only the information in the provided numbered sources. Cite the sources you use inline with bracketed numbers like [1] or [2]. If the sources disagree, note the disagreement. If the sources do not contain enough information to answer, say so plainly rather than guessing. Do not invent facts, URLs, or citations. Respond with a clear, direct answer in plain prose with no preamble, headings, or markdown.`
+
+// synthesizeAnswer composes a cited answer from the already-read sources. The
+// bracketed citation numbers match the 1-based position of each source, which is
+// the same order returned to the caller in Sources.
+func (s *Server) synthesizeAnswer(ctx context.Context, query string, sources []readSource) (string, string, error) {
+	if len(sources) == 0 {
+		return "", "", fmt.Errorf("no sources available to synthesize an answer")
+	}
+	var b strings.Builder
+	for i, src := range sources {
+		body := strings.TrimSpace(src.content)
+		if body == "" {
+			body = strings.TrimSpace(src.note.Summary)
+		}
+		fmt.Fprintf(&b, "[%d] %s", i+1, strings.TrimSpace(src.note.Result.Title))
+		if domain := src.note.Result.Domain; domain != "" {
+			fmt.Fprintf(&b, " (%s)", domain)
+		}
+		if url := src.note.Result.URL; url != "" {
+			fmt.Fprintf(&b, "\nURL: %s", url)
+		}
+		if body != "" {
+			fmt.Fprintf(&b, "\n%s", body)
+		}
+		b.WriteString("\n\n")
+	}
+	user := "Question: " + strings.TrimSpace(query) + "\n\nSources:\n" + strings.TrimSpace(b.String())
+	answer, err := s.synth.Complete(ctx, answerSystemPrompt, user)
+	if err != nil {
+		return "", "", fmt.Errorf("synthesize answer: %w", err)
+	}
+	return strings.TrimSpace(answer), s.synth.Model(), nil
 }
 
 func (s *Server) runCompareSources(ctx context.Context, req types.CompareSourcesRequest) (types.CompareSourcesResponse, error) {
@@ -1371,7 +1435,21 @@ func normalizeReadCount(value, fallback int) int {
 	return value
 }
 
-func (s *Server) searchAndReadNotes(ctx context.Context, toolName string, req types.SearchRequest, readTopN int) (types.SearchResponse, []types.SourceNote, error) {
+// synthSourceCapChars bounds how much of each read source is carried into an
+// answer synthesis prompt, keeping requests within a reasonable size.
+const synthSourceCapChars = 4000
+
+// readSource pairs a source note with the (capped) read text behind it, so an
+// optional synthesis step can use real content without re-fetching.
+type readSource struct {
+	note    types.SourceNote
+	content string
+}
+
+// searchAndCapture searches, reads the top results, and returns both the compact
+// notes and the capped read text per source. It is the shared engine behind the
+// read-and-summarize tools.
+func (s *Server) searchAndCapture(ctx context.Context, toolName string, req types.SearchRequest, readTopN int) (types.SearchResponse, []readSource, error) {
 	searchResp, err := s.runSearch(ctx, toolName, firstNonEmpty(req.Category, "general"), req)
 	if err != nil {
 		return types.SearchResponse{}, nil, err
@@ -1380,17 +1458,39 @@ func (s *Server) searchAndReadNotes(ctx context.Context, toolName string, req ty
 	if readTopN > len(searchResp.Results) {
 		readTopN = len(searchResp.Results)
 	}
-	notes := make([]types.SourceNote, 0, readTopN)
+	sources := make([]readSource, 0, readTopN)
 	for i := 0; i < readTopN; i++ {
 		result := searchResp.Results[i]
 		note := types.SourceNote{Result: result, Summary: compactResultSummary(result)}
+		var content string
 		readResp, err := s.runRead(ctx, types.URLReadRequest{URL: result.URL})
 		if err == nil {
 			note.Summary = compactReadSummary(result, readResp.Content)
+			content = strings.TrimSpace(readResp.Content)
+			if len(content) > synthSourceCapChars {
+				content = content[:synthSourceCapChars]
+			}
 		}
-		notes = append(notes, note)
+		sources = append(sources, readSource{note: note, content: content})
 	}
-	return searchResp, notes, nil
+	return searchResp, sources, nil
+}
+
+// notesOf extracts just the source notes, discarding captured content.
+func notesOf(sources []readSource) []types.SourceNote {
+	notes := make([]types.SourceNote, len(sources))
+	for i, src := range sources {
+		notes[i] = src.note
+	}
+	return notes
+}
+
+func (s *Server) searchAndReadNotes(ctx context.Context, toolName string, req types.SearchRequest, readTopN int) (types.SearchResponse, []types.SourceNote, error) {
+	searchResp, sources, err := s.searchAndCapture(ctx, toolName, req, readTopN)
+	if err != nil {
+		return types.SearchResponse{}, nil, err
+	}
+	return searchResp, notesOf(sources), nil
 }
 
 func summarizeNotes(notes []types.SourceNote, maxSummary int) []string {

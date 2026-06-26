@@ -110,19 +110,23 @@ func run() error {
 		}
 	}
 
-	var cleaner *transcript.Cleaner
+	var (
+		cleaner *transcript.Cleaner
+		synth   mcp.Synthesizer
+	)
 	if cfg.LLM.Active() {
 		llmClient, err := llm.NewClient(cfg.LLM)
 		if err != nil {
 			return err
 		}
 		cleaner = transcript.NewCleaner(llmClient, cfg.LLM.MaxInputChars)
-		logger.Info("transcript cleaning enabled", "model", llmClient.Model(), "base_url", cfg.LLM.BaseURL)
+		synth = llmClient
+		logger.Info("llm features enabled", "model", llmClient.Model(), "base_url", cfg.LLM.BaseURL)
 	} else if cfg.LLM.Enabled {
-		logger.Info("transcript cleaning disabled: DEEPSEEK_API_KEY not set")
+		logger.Info("llm features disabled: DEEPSEEK_API_KEY not set")
 	}
 
-	server := mcp.NewServer(cfg, searchClient, reader, mediaRunner, cleaner, logger)
+	server := mcp.NewServer(cfg, searchClient, reader, mediaRunner, cleaner, synth, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

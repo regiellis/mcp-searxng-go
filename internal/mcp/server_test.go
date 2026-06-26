@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -429,7 +430,123 @@ func newMediaTestServer(t *testing.T, mediaDir, ytDlpPath string) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewServer(cfg, searchClient, reader, runner, nil, logger)
+	return NewServer(cfg, searchClient, reader, runner, nil, nil, logger)
+}
+
+// fakeSynth is a stub Synthesizer that records its prompt and returns a fixed reply.
+type fakeSynth struct {
+	model     string
+	reply     string
+	gotSystem string
+	gotUser   string
+}
+
+func (f *fakeSynth) Complete(_ context.Context, system, user string) (string, error) {
+	f.gotSystem = system
+	f.gotUser = user
+	return f.reply, nil
+}
+
+func (f *fakeSynth) Model() string { return f.model }
+
+func TestAnswerSearchSynthesizeComposesCitedAnswer(t *testing.T) {
+	t.Parallel()
+
+	readURL := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(`<html><head><title>France facts</title></head><body>The capital of France is Paris.</body></html>`))
+	}))
+	defer readURL.Close()
+
+	searx := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"query": "capital of france",
+			"results": []map[string]any{
+				{"title": "France facts", "url": readURL.URL, "content": "About France"},
+			},
+		})
+	}))
+	defer searx.Close()
+
+	server := newTestServer(t, searx.URL)
+	fake := &fakeSynth{model: "deepseek-test", reply: "The capital of France is Paris [1]."}
+	server.synth = fake
+
+	resp, err := server.runAnswerSearch(context.Background(), types.AnswerSearchRequest{
+		Query:      "capital of france",
+		Limit:      1,
+		ReadTopN:   1,
+		Synthesize: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Answer != "The capital of France is Paris [1]." || resp.AnswerModel != "deepseek-test" {
+		t.Fatalf("unexpected synthesis: answer=%q model=%q", resp.Answer, resp.AnswerModel)
+	}
+	// The deterministic packet is still present alongside the synthesized answer.
+	if len(resp.Sources) != 1 || len(resp.Summary) == 0 {
+		t.Fatalf("expected deterministic packet retained: %#v", resp)
+	}
+	// The prompt carried the question and the read source content.
+	if !strings.Contains(fake.gotUser, "Question: capital of france") {
+		t.Fatalf("prompt missing question: %q", fake.gotUser)
+	}
+	if !strings.Contains(fake.gotUser, "[1] France facts") || !strings.Contains(fake.gotUser, "capital of France is Paris") {
+		t.Fatalf("prompt missing cited source content: %q", fake.gotUser)
+	}
+}
+
+func TestAnswerSearchSynthesizeDisabledWithoutLLM(t *testing.T) {
+	t.Parallel()
+
+	searx := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"query":   "anything",
+			"results": []map[string]any{{"title": "X", "url": "https://x.example", "content": "x"}},
+		})
+	}))
+	defer searx.Close()
+
+	server := newTestServer(t, searx.URL) // synth is nil
+	_, err := server.runAnswerSearch(context.Background(), types.AnswerSearchRequest{
+		Query:      "anything",
+		Limit:      1,
+		ReadTopN:   1,
+		Synthesize: true,
+	})
+	if err == nil {
+		t.Fatal("expected synthesize=true without an LLM to error")
+	}
+	if !strings.Contains(err.Error(), "synthesis is disabled") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAnswerSearchDefaultStaysDeterministic(t *testing.T) {
+	t.Parallel()
+
+	searx := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"query":   "anything",
+			"results": []map[string]any{{"title": "X", "url": "https://x.example", "content": "x"}},
+		})
+	}))
+	defer searx.Close()
+
+	server := newTestServer(t, searx.URL)
+	// No synth set; without synthesize the call must succeed and add no answer.
+	resp, err := server.runAnswerSearch(context.Background(), types.AnswerSearchRequest{
+		Query:    "anything",
+		Limit:    1,
+		ReadTopN: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Answer != "" || resp.AnswerModel != "" {
+		t.Fatalf("expected no synthesized answer by default, got %#v", resp)
+	}
 }
 
 func newTestServer(t *testing.T, searxURL string) *Server {
@@ -449,7 +566,7 @@ func newTestServer(t *testing.T, searxURL string) *Server {
 		BlockPrivateNetworks: false,
 		Policy:               security.NewDomainPolicy(nil, nil),
 	}), logger)
-	return NewServer(cfg, searchClient, reader, nil, nil, logger)
+	return NewServer(cfg, searchClient, reader, nil, nil, nil, logger)
 }
 
 func mapRequest(method string, params any) types.JSONRPCRequest {

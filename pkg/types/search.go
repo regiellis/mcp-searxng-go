@@ -122,6 +122,10 @@ type AnswerSearchRequest struct {
 	Limit      int    `json:"limit,omitempty"`
 	ReadTopN   int    `json:"read_top_n,omitempty"`
 	MaxSummary int    `json:"max_summary,omitempty"`
+	// Synthesize, when true, additionally sends the read sources through the LLM
+	// to compose a written, cited answer. Off by default: the deterministic
+	// packet needs no API key, and synthesis is an explicit opt-in.
+	Synthesize bool `json:"synthesize,omitempty"`
 }
 
 // SourceNote summarizes one result and optional read.
@@ -130,13 +134,18 @@ type SourceNote struct {
 	Summary string       `json:"summary,omitempty"`
 }
 
-// AnswerSearchResponse returns a compact summary with backing sources.
+// AnswerSearchResponse returns a compact summary with backing sources. Answer
+// and AnswerModel are populated only when synthesize=true was requested and an
+// LLM is configured; the bracketed citations in Answer refer to Sources by
+// 1-based position.
 type AnswerSearchResponse struct {
-	Query    string         `json:"query"`
-	Summary  []string       `json:"summary"`
-	Search   SearchResponse `json:"search"`
-	ReadTopN int            `json:"read_top_n"`
-	Sources  []SourceNote   `json:"sources"`
+	Query       string         `json:"query"`
+	Summary     []string       `json:"summary"`
+	Search      SearchResponse `json:"search"`
+	ReadTopN    int            `json:"read_top_n"`
+	Sources     []SourceNote   `json:"sources"`
+	Answer      string         `json:"answer,omitempty"`
+	AnswerModel string         `json:"answer_model,omitempty"`
 }
 
 // CompareSourcesRequest searches then compares multiple source reads.
