@@ -233,6 +233,86 @@ func TestReadFile(t *testing.T) {
 	}
 }
 
+func TestProbeParsesFfprobeJSON(t *testing.T) {
+	dir := t.TempDir()
+	const probeJSON = `{
+  "streams": [
+    {"index": 0, "codec_name": "h264", "codec_type": "video", "profile": "High", "width": 1920, "height": 1080, "avg_frame_rate": "30000/1001", "tags": {"language": "eng"}},
+    {"index": 1, "codec_name": "aac", "codec_type": "audio", "channels": 2, "sample_rate": "48000", "tags": {"language": "eng", "title": "Stereo"}}
+  ],
+  "format": {"filename": "clip.mp4", "format_name": "mov,mp4,m4a,3gp,3g2,mj2", "format_long_name": "QuickTime / MOV", "duration": "3725.500000", "size": "12345678", "bit_rate": "1500000"}
+}`
+	// Fake ffprobe ignores its args and prints the canned JSON document.
+	ffprobe := writeStub(t, `cat <<'EOF'
+`+probeJSON+`
+EOF`)
+	r := newRunner(t, config.MediaConfig{OutputDir: dir, FfprobePath: ffprobe})
+
+	if err := os.WriteFile(filepath.Join(dir, "clip.mp4"), []byte("bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := r.Probe(context.Background(), types.ProbeMediaRequest{Path: "clip.mp4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.FormatName != "mov,mp4,m4a,3gp,3g2,mj2" || resp.DurationHuman != "1:02:05" {
+		t.Fatalf("unexpected format/duration: %q %q", resp.FormatName, resp.DurationHuman)
+	}
+	if resp.StreamCount != 2 || len(resp.Streams) != 2 {
+		t.Fatalf("expected 2 streams, got %d", resp.StreamCount)
+	}
+	video := resp.Streams[0]
+	if video.Type != "video" || video.Codec != "h264" || video.Width != 1920 || video.Height != 1080 {
+		t.Fatalf("unexpected video stream: %#v", video)
+	}
+	if video.FrameRate != "29.97" {
+		t.Fatalf("expected frame rate 29.97, got %q", video.FrameRate)
+	}
+	audio := resp.Streams[1]
+	if audio.Type != "audio" || audio.Channels != 2 || audio.SampleRate != "48000" || audio.Title != "Stereo" {
+		t.Fatalf("unexpected audio stream: %#v", audio)
+	}
+
+	// Paths outside the sandbox are rejected before ffprobe runs.
+	if _, err := r.Probe(context.Background(), types.ProbeMediaRequest{Path: "/etc/passwd"}); err == nil {
+		t.Fatal("expected sandbox rejection for outside path")
+	}
+}
+
+func TestSimplifyFrameRate(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"30/1":       "30",
+		"30000/1001": "29.97",
+		"24/1":       "24",
+		"0/0":        "",
+		"":           "",
+		"60":         "60",
+	}
+	for in, want := range cases {
+		if got := simplifyFrameRate(in); got != want {
+			t.Fatalf("simplifyFrameRate(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestHumanDuration(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"3725.5": "1:02:05",
+		"125.0":  "2:05",
+		"5":      "0:05",
+		"":       "",
+		"bad":    "",
+	}
+	for in, want := range cases {
+		if got := humanDuration(in); got != want {
+			t.Fatalf("humanDuration(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestPreflightReportsMissingBinaries(t *testing.T) {
 	t.Parallel()
 	r := newRunner(t, config.MediaConfig{YtDlpPath: "definitely-not-a-real-binary-xyz", FfmpegPath: "also-not-real-xyz"})

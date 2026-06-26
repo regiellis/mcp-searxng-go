@@ -50,11 +50,12 @@ func (l LLMConfig) Active() bool {
 // confined to OutputDir. Binaries are looked up on PATH unless an absolute path
 // is given.
 type MediaConfig struct {
-	Enabled    bool          `yaml:"enabled"`
-	OutputDir  string        `yaml:"output_dir"`
-	YtDlpPath  string        `yaml:"yt_dlp_path"`
-	FfmpegPath string        `yaml:"ffmpeg_path"`
-	Timeout    time.Duration `yaml:"timeout"`
+	Enabled     bool          `yaml:"enabled"`
+	OutputDir   string        `yaml:"output_dir"`
+	YtDlpPath   string        `yaml:"yt_dlp_path"`
+	FfmpegPath  string        `yaml:"ffmpeg_path"`
+	FfprobePath string        `yaml:"ffprobe_path"`
+	Timeout     time.Duration `yaml:"timeout"`
 }
 
 // SearXNGConfig contains SearXNG client configuration.
@@ -133,11 +134,12 @@ func Default() Config {
 			Enabled: true,
 		},
 		Media: MediaConfig{
-			Enabled:    true,
-			OutputDir:  "media",
-			YtDlpPath:  "yt-dlp",
-			FfmpegPath: "ffmpeg",
-			Timeout:    10 * time.Minute,
+			Enabled:     true,
+			OutputDir:   "media",
+			YtDlpPath:   "yt-dlp",
+			FfmpegPath:  "ffmpeg",
+			FfprobePath: "ffprobe",
+			Timeout:     10 * time.Minute,
 		},
 		LLM: LLMConfig{
 			Enabled:       true,
@@ -291,6 +293,7 @@ func applyEnv(cfg *Config) {
 	setString("MCP_MEDIA_OUTPUT_DIR", &cfg.Media.OutputDir)
 	setString("MCP_MEDIA_YT_DLP_PATH", &cfg.Media.YtDlpPath)
 	setString("MCP_MEDIA_FFMPEG_PATH", &cfg.Media.FfmpegPath)
+	setString("MCP_MEDIA_FFPROBE_PATH", &cfg.Media.FfprobePath)
 	setDuration("MCP_MEDIA_TIMEOUT", &cfg.Media.Timeout)
 
 	// DEEPSEEK_API_KEY is the documented key name; the rest allow overriding the

@@ -89,6 +89,46 @@ type CleanSubtitlesResponse struct {
 	SavedPath   string `json:"saved_path,omitempty"`
 }
 
+// ProbeMediaRequest is the input for the probe_media tool. Path must point at a
+// file already inside the media output directory, for example one produced by
+// download_video or transcode_media.
+type ProbeMediaRequest struct {
+	Path string `json:"path"`
+}
+
+// ProbeStream describes a single container stream reported by ffprobe. Only the
+// fields relevant to the stream's type are populated (resolution for video,
+// channels/sample rate for audio, language for subtitles).
+type ProbeStream struct {
+	Index      int    `json:"index"`
+	Type       string `json:"type"` // video, audio, subtitle, data, attachment
+	Codec      string `json:"codec,omitempty"`
+	Profile    string `json:"profile,omitempty"`
+	Width      int    `json:"width,omitempty"`
+	Height     int    `json:"height,omitempty"`
+	FrameRate  string `json:"frame_rate,omitempty"`  // simplified, e.g. "30" or "29.97"
+	Channels   int    `json:"channels,omitempty"`    // audio
+	SampleRate string `json:"sample_rate,omitempty"` // audio, Hz
+	Language   string `json:"language,omitempty"`
+	Title      string `json:"title,omitempty"`
+}
+
+// ProbeMediaResponse is returned by the probe_media tool. It exposes container
+// and per-stream metadata so a caller can decide how (or whether) to transcode a
+// file without downloading or re-encoding it first.
+type ProbeMediaResponse struct {
+	Path          string        `json:"path"`
+	Filename      string        `json:"filename"`
+	FormatName    string        `json:"format_name,omitempty"`
+	FormatLong    string        `json:"format_long_name,omitempty"`
+	Duration      string        `json:"duration,omitempty"`       // seconds, as reported by ffprobe
+	DurationHuman string        `json:"duration_human,omitempty"` // H:MM:SS or M:SS
+	SizeBytes     int64         `json:"size_bytes"`
+	BitRate       string        `json:"bit_rate,omitempty"` // bits per second
+	StreamCount   int           `json:"stream_count"`
+	Streams       []ProbeStream `json:"streams"`
+}
+
 // ReadMediaFileResponse returns the contents of a file in the media directory.
 // Encoding is "text" for valid UTF-8 (e.g. subtitles) or "base64" for binary.
 type ReadMediaFileResponse struct {

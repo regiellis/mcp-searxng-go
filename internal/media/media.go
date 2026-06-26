@@ -7,6 +7,7 @@ package media
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -45,12 +46,13 @@ var audioFormats = map[string]struct{}{
 
 // Runner executes media operations within a sandboxed output directory.
 type Runner struct {
-	outputDir  string
-	ytDlpPath  string
-	ffmpegPath string
-	timeout    time.Duration
-	guard      URLGuard
-	logger     *slog.Logger
+	outputDir   string
+	ytDlpPath   string
+	ffmpegPath  string
+	ffprobePath string
+	timeout     time.Duration
+	guard       URLGuard
+	logger      *slog.Logger
 }
 
 // NewRunner creates the output directory and returns a configured Runner.
@@ -63,12 +65,13 @@ func NewRunner(cfg config.MediaConfig, guard URLGuard, logger *slog.Logger) (*Ru
 		return nil, fmt.Errorf("create media output_dir: %w", err)
 	}
 	return &Runner{
-		outputDir:  outputDir,
-		ytDlpPath:  firstNonEmpty(cfg.YtDlpPath, "yt-dlp"),
-		ffmpegPath: firstNonEmpty(cfg.FfmpegPath, "ffmpeg"),
-		timeout:    cfg.Timeout,
-		guard:      guard,
-		logger:     logger,
+		outputDir:   outputDir,
+		ytDlpPath:   firstNonEmpty(cfg.YtDlpPath, "yt-dlp"),
+		ffmpegPath:  firstNonEmpty(cfg.FfmpegPath, "ffmpeg"),
+		ffprobePath: firstNonEmpty(cfg.FfprobePath, "ffprobe"),
+		timeout:     cfg.Timeout,
+		guard:       guard,
+		logger:      logger,
 	}, nil
 }
 
@@ -82,6 +85,9 @@ func (r *Runner) Preflight() error {
 	}
 	if _, err := exec.LookPath(r.ffmpegPath); err != nil {
 		errs = append(errs, fmt.Errorf("ffmpeg not found (%s): %w", r.ffmpegPath, err))
+	}
+	if _, err := exec.LookPath(r.ffprobePath); err != nil {
+		errs = append(errs, fmt.Errorf("ffprobe not found (%s): %w", r.ffprobePath, err))
 	}
 	return errors.Join(errs...)
 }
@@ -246,6 +252,156 @@ func (r *Runner) Subtitles(ctx context.Context, req types.SubtitlesRequest) (typ
 		return types.SubtitlesResponse{}, fmt.Errorf("no subtitles found for language %q", lang)
 	}
 	return types.SubtitlesResponse{SourceURL: sourceURL, Files: files}, nil
+}
+
+// ffprobeOutput mirrors the subset of `ffprobe -show_format -show_streams -of
+// json` that probe_media exposes. Numeric container fields (duration, size,
+// bit_rate) are reported as strings by ffprobe.
+type ffprobeOutput struct {
+	Streams []ffprobeStream `json:"streams"`
+	Format  ffprobeFormat   `json:"format"`
+}
+
+type ffprobeStream struct {
+	Index        int               `json:"index"`
+	CodecName    string            `json:"codec_name"`
+	CodecType    string            `json:"codec_type"`
+	Profile      string            `json:"profile"`
+	Width        int               `json:"width"`
+	Height       int               `json:"height"`
+	RFrameRate   string            `json:"r_frame_rate"`
+	AvgFrameRate string            `json:"avg_frame_rate"`
+	Channels     int               `json:"channels"`
+	SampleRate   string            `json:"sample_rate"`
+	Tags         map[string]string `json:"tags"`
+}
+
+type ffprobeFormat struct {
+	Filename       string `json:"filename"`
+	FormatName     string `json:"format_name"`
+	FormatLongName string `json:"format_long_name"`
+	Duration       string `json:"duration"`
+	Size           string `json:"size"`
+	BitRate        string `json:"bit_rate"`
+}
+
+// Probe returns container and per-stream metadata for a file inside the output
+// directory using ffprobe, without downloading or re-encoding it. This lets a
+// caller inspect duration, codecs, and resolution before deciding how (or
+// whether) to transcode.
+func (r *Runner) Probe(ctx context.Context, req types.ProbeMediaRequest) (types.ProbeMediaResponse, error) {
+	path, err := r.resolveInOutput(req.Path)
+	if err != nil {
+		return types.ProbeMediaResponse{}, err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return types.ProbeMediaResponse{}, err
+	}
+	if info.IsDir() {
+		return types.ProbeMediaResponse{}, fmt.Errorf("path %q is a directory", req.Path)
+	}
+
+	ctx, cancel := r.withTimeout(ctx)
+	defer cancel()
+
+	out, err := r.run(ctx, r.ffprobePath, []string{
+		"-v", "error",
+		"-show_format",
+		"-show_streams",
+		"-of", "json",
+		path,
+	})
+	if err != nil {
+		return types.ProbeMediaResponse{}, err
+	}
+
+	var probe ffprobeOutput
+	if err := json.Unmarshal([]byte(out), &probe); err != nil {
+		return types.ProbeMediaResponse{}, fmt.Errorf("parse ffprobe output: %w", err)
+	}
+
+	resp := types.ProbeMediaResponse{
+		Path:          path,
+		Filename:      info.Name(),
+		FormatName:    probe.Format.FormatName,
+		FormatLong:    probe.Format.FormatLongName,
+		Duration:      probe.Format.Duration,
+		DurationHuman: humanDuration(probe.Format.Duration),
+		SizeBytes:     info.Size(),
+		BitRate:       probe.Format.BitRate,
+		StreamCount:   len(probe.Streams),
+		Streams:       make([]types.ProbeStream, 0, len(probe.Streams)),
+	}
+	for _, s := range probe.Streams {
+		stream := types.ProbeStream{
+			Index:   s.Index,
+			Type:    s.CodecType,
+			Codec:   s.CodecName,
+			Profile: s.Profile,
+		}
+		switch s.CodecType {
+		case "video":
+			stream.Width = s.Width
+			stream.Height = s.Height
+			stream.FrameRate = simplifyFrameRate(firstNonEmpty(s.AvgFrameRate, s.RFrameRate))
+		case "audio":
+			stream.Channels = s.Channels
+			stream.SampleRate = s.SampleRate
+		}
+		if s.Tags != nil {
+			stream.Language = firstNonEmpty(s.Tags["language"], s.Tags["LANGUAGE"])
+			stream.Title = firstNonEmpty(s.Tags["title"], s.Tags["TITLE"])
+		}
+		resp.Streams = append(resp.Streams, stream)
+	}
+	return resp, nil
+}
+
+// simplifyFrameRate reduces an ffprobe rational frame rate ("30/1",
+// "30000/1001") to a compact decimal string ("30", "29.97"). Unparseable or
+// zero rates yield an empty string.
+func simplifyFrameRate(rational string) string {
+	rational = strings.TrimSpace(rational)
+	if rational == "" || rational == "0/0" {
+		return ""
+	}
+	num, den, ok := strings.Cut(rational, "/")
+	if !ok {
+		return rational
+	}
+	n, err1 := strconv.ParseFloat(num, 64)
+	d, err2 := strconv.ParseFloat(den, 64)
+	if err1 != nil || err2 != nil || d == 0 || n == 0 {
+		return ""
+	}
+	fps := n / d
+	// Whole numbers print without a fractional part; others to two decimals.
+	if fps == float64(int64(fps)) {
+		return strconv.FormatInt(int64(fps), 10)
+	}
+	return strings.TrimRight(strings.TrimRight(strconv.FormatFloat(fps, 'f', 2, 64), "0"), ".")
+}
+
+// humanDuration converts ffprobe's fractional-seconds string into H:MM:SS (or
+// M:SS for sub-hour durations). An unparseable value yields an empty string.
+func humanDuration(seconds string) string {
+	seconds = strings.TrimSpace(seconds)
+	if seconds == "" {
+		return ""
+	}
+	total, err := strconv.ParseFloat(seconds, 64)
+	if err != nil || total < 0 {
+		return ""
+	}
+	whole := int64(total)
+	h := whole / 3600
+	m := (whole % 3600) / 60
+	s := whole % 60
+	if h > 0 {
+		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
+	}
+	return fmt.Sprintf("%d:%02d", m, s)
 }
 
 // ReadFile returns the contents of a file inside the output directory so a

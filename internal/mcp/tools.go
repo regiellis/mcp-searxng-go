@@ -278,6 +278,18 @@ func toolDefinitions() []types.ToolDefinition {
 			},
 		},
 		{
+			Name:        "probe_media",
+			Description: "Inspect a media file already in the server media directory with ffprobe: returns container format, duration, size, bitrate, and per-stream codec/resolution/language metadata. Use this to decide how (or whether) to transcode before re-encoding. Path must reference a file inside that directory.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{"type": "string", "description": "Path to an existing file inside the media output directory (e.g. from download_video)."},
+				},
+				"required":             []string{"path"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "read_media_file",
 			Description: "Read the contents of a file inside the server media directory, such as a subtitle returned by download_subtitles. Returns UTF-8 text when possible, otherwise base64. Use this to retrieve files the other media tools saved server-side.",
 			InputSchema: map[string]any{
