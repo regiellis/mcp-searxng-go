@@ -89,6 +89,41 @@ type CleanSubtitlesResponse struct {
 	SavedPath   string `json:"saved_path,omitempty"`
 }
 
+// TranscriptChaptersRequest is the input for the transcript_chapters tool. Path
+// must point at a timestamped subtitle/transcript file (SRT or VTT) already
+// inside the media output directory, for example one returned by
+// download_subtitles. All segmentation is deterministic; no LLM is used.
+type TranscriptChaptersRequest struct {
+	Path       string  `json:"path"`
+	MinSeconds float64 `json:"min_seconds,omitempty"` // merge chapters shorter than this (default 60)
+	GapSeconds float64 `json:"gap_seconds,omitempty"` // silence gap treated as a section boundary (default 2.5)
+	MaxSeconds float64 `json:"max_seconds,omitempty"` // force a split beyond this length (default 300)
+}
+
+// TranscriptChapter is one time-bounded section of a transcript. Preview is a
+// short verbatim opening of the section's text.
+type TranscriptChapter struct {
+	Index           int     `json:"index"`
+	Start           string  `json:"start"` // H:MM:SS
+	End             string  `json:"end"`
+	StartSeconds    float64 `json:"start_seconds"`
+	DurationSeconds float64 `json:"duration_seconds"`
+	Preview         string  `json:"preview"`
+	Text            string  `json:"text"`
+}
+
+// TranscriptChaptersResponse is returned by the transcript_chapters tool. It
+// segments a transcript into time-bounded sections by caption timing (silence
+// gaps and length) — structural segmentation, not semantic topic detection.
+type TranscriptChaptersResponse struct {
+	SourcePath    string              `json:"source_path"`
+	Format        string              `json:"format"` // srt or vtt
+	CueCount      int                 `json:"cue_count"`
+	ChapterCount  int                 `json:"chapter_count"`
+	TotalDuration string              `json:"total_duration"`
+	Chapters      []TranscriptChapter `json:"chapters"`
+}
+
 // ProbeMediaRequest is the input for the probe_media tool. Path must point at a
 // file already inside the media output directory, for example one produced by
 // download_video or transcode_media.

@@ -519,6 +519,16 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 			return responseError(req.ID, errInternal, err.Error(), nil)
 		}
 		return s.toolResult(req.ID, result)
+	case "transcript_chapters":
+		var input types.TranscriptChaptersRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid transcript_chapters arguments", map[string]any{"detail": err.Error()})
+		}
+		result, err := s.runTranscriptChapters(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInternal, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
 	case "probe_media":
 		var input types.ProbeMediaRequest
 		if err := json.Unmarshal(params.Arguments, &input); err != nil {
@@ -1126,6 +1136,41 @@ func (s *Server) runCleanSubtitles(ctx context.Context, req types.CleanSubtitles
 	}
 
 	s.logger.Info("tool end", "tool", "clean_subtitles", "chunks", result.Chunks, "input_chars", result.InputChars, "output_chars", result.OutputChars)
+	return result, nil
+}
+
+// runTranscriptChapters reads a timestamped subtitle file from the media sandbox
+// and segments it into time-bounded chapters by caption timing. It needs only
+// the media runner for file access — no LLM — so it works without an API key.
+func (s *Server) runTranscriptChapters(ctx context.Context, req types.TranscriptChaptersRequest) (types.TranscriptChaptersResponse, error) {
+	if s.media == nil {
+		return types.TranscriptChaptersResponse{}, fmt.Errorf("media tools are disabled")
+	}
+
+	file, err := s.media.ReadFile(ctx, types.ReadMediaFileRequest{Path: req.Path, MaxBytes: maxSubtitleBytes})
+	if err != nil {
+		return types.TranscriptChaptersResponse{}, err
+	}
+	if file.Encoding != "text" {
+		return types.TranscriptChaptersResponse{}, fmt.Errorf("%q is not a text subtitle file", req.Path)
+	}
+	if file.Truncated {
+		s.logger.Warn("subtitle truncated before chaptering", "path", file.Path, "limit", maxSubtitleBytes)
+	}
+
+	s.logger.Info("tool start", "tool", "transcript_chapters", "path", file.Path)
+	result, err := transcript.Chapters(file.Content, transcript.ChapterOptions{
+		MinSeconds: req.MinSeconds,
+		GapSeconds: req.GapSeconds,
+		MaxSeconds: req.MaxSeconds,
+	})
+	if err != nil {
+		s.logger.Error("tool failure", "tool", "transcript_chapters", "error", err)
+		return types.TranscriptChaptersResponse{}, err
+	}
+	result.SourcePath = file.Path
+
+	s.logger.Info("tool end", "tool", "transcript_chapters", "cues", result.CueCount, "chapters", result.ChapterCount)
 	return result, nil
 }
 

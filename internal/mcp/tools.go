@@ -278,6 +278,21 @@ func toolDefinitions() []types.ToolDefinition {
 			},
 		},
 		{
+			Name:        "transcript_chapters",
+			Description: "Segment a timestamped subtitle/transcript file (SRT or VTT) into time-bounded chapters with start/end times and a text preview, using caption timing only. This is deterministic structural segmentation (silence gaps and length), not an LLM summary, and requires no API key. Path must reference a file inside the media directory (e.g. from download_subtitles).",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path":        map[string]any{"type": "string", "description": "Path to a timestamped SRT/VTT file inside the media output directory."},
+					"min_seconds": map[string]any{"type": "number", "minimum": 0, "description": "Merge chapters shorter than this many seconds. Default 60."},
+					"gap_seconds": map[string]any{"type": "number", "minimum": 0, "description": "Silence gap (seconds) treated as a candidate section boundary. Default 2.5."},
+					"max_seconds": map[string]any{"type": "number", "minimum": 0, "description": "Force a chapter split once it reaches this many seconds. Default 300."},
+				},
+				"required":             []string{"path"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "probe_media",
 			Description: "Inspect a media file already in the server media directory with ffprobe: returns container format, duration, size, bitrate, and per-stream codec/resolution/language metadata. Use this to decide how (or whether) to transcode before re-encoding. Path must reference a file inside that directory.",
 			InputSchema: map[string]any{
