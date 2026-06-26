@@ -19,6 +19,7 @@ import (
 
 	"github.com/regiellis/mcp-searxng-go/internal/cache"
 	"github.com/regiellis/mcp-searxng-go/internal/config"
+	"github.com/regiellis/mcp-searxng-go/internal/feed"
 	"github.com/regiellis/mcp-searxng-go/internal/fetch"
 	"github.com/regiellis/mcp-searxng-go/internal/media"
 	"github.com/regiellis/mcp-searxng-go/internal/search"
@@ -610,6 +611,16 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 			return responseError(req.ID, errInvalidParams, "invalid url_read arguments", map[string]any{"detail": err.Error()})
 		}
 		result, err := s.runRead(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "fetch_feed":
+		var input types.FetchFeedRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid fetch_feed arguments", map[string]any{"detail": err.Error()})
+		}
+		result, err := s.runFetchFeed(ctx, input)
 		if err != nil {
 			return responseError(req.ID, errInvalidParams, err.Error(), nil)
 		}
@@ -1208,6 +1219,50 @@ func (s *Server) runSearchAndRead(ctx context.Context, req types.SearchAndReadRe
 		SelectedIndex: index,
 		Selected:      &selected,
 		Read:          &readResp,
+	}, nil
+}
+
+// feedItemDefault and feedItemMax bound how many feed items are returned.
+const (
+	feedItemDefault = 20
+	feedItemMax     = 100
+)
+
+func (s *Server) runFetchFeed(ctx context.Context, req types.FetchFeedRequest) (types.FetchFeedResponse, error) {
+	if strings.TrimSpace(req.URL) == "" {
+		return types.FetchFeedResponse{}, fmt.Errorf("url is required")
+	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = feedItemDefault
+	}
+	if limit > feedItemMax {
+		limit = feedItemMax
+	}
+
+	s.logger.Info("tool start", "tool", "fetch_feed", "url", req.URL)
+	body, _, finalURL, err := s.reader.FetchRaw(ctx, req.URL)
+	if err != nil {
+		s.logger.Error("tool failure", "tool", "fetch_feed", "error", err)
+		return types.FetchFeedResponse{}, err
+	}
+	parsed, err := feed.Parse(body)
+	if err != nil {
+		return types.FetchFeedResponse{}, err
+	}
+
+	items := parsed.Items
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	s.logger.Info("tool end", "tool", "fetch_feed", "format", parsed.Format, "items", len(items))
+	return types.FetchFeedResponse{
+		SourceURL: finalURL,
+		FeedTitle: parsed.Title,
+		FeedLink:  parsed.Link,
+		Format:    parsed.Format,
+		ItemCount: len(items),
+		Items:     items,
 	}, nil
 }
 

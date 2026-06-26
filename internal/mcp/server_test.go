@@ -567,6 +567,36 @@ func TestLanguageSlug(t *testing.T) {
 	}
 }
 
+func TestFetchFeedParsesAndLimits(t *testing.T) {
+	t.Parallel()
+
+	server := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/rss+xml")
+		_, _ = w.Write([]byte(`<?xml version="1.0"?>
+<rss version="2.0"><channel><title>Feed</title><link>https://ex.example</link>
+<item><title>A</title><link>https://ex.example/a</link></item>
+<item><title>B</title><link>https://ex.example/b</link></item>
+<item><title>C</title><link>https://ex.example/c</link></item>
+</channel></rss>`))
+	}))
+	defer server.Close()
+
+	srv := newTestServer(t, "https://example.com")
+	resp, err := srv.runFetchFeed(context.Background(), types.FetchFeedRequest{URL: server.URL, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Format != "rss" || resp.FeedTitle != "Feed" {
+		t.Fatalf("unexpected feed header: %#v", resp)
+	}
+	if resp.ItemCount != 2 || len(resp.Items) != 2 {
+		t.Fatalf("expected limit of 2 applied, got %d", resp.ItemCount)
+	}
+	if resp.Items[0].Title != "A" {
+		t.Fatalf("unexpected first item: %#v", resp.Items[0])
+	}
+}
+
 func TestResearchStoreRoundTrip(t *testing.T) {
 	t.Parallel()
 

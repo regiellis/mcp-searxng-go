@@ -100,6 +100,41 @@ func (r *Reader) Read(ctx context.Context, req types.URLReadRequest) (types.URLR
 	}, nil
 }
 
+// FetchRaw fetches a URL through the same SSRF guard, redirect, and size limits
+// as Read, but returns the raw (capped) body without text extraction. It is used
+// for structured formats such as RSS/Atom feeds that the caller parses itself.
+// Unlike Read it does not reject by content type, since feeds are served under
+// many (and often wrong) types.
+func (r *Reader) FetchRaw(ctx context.Context, rawURL string) (body []byte, contentType, finalURL string, err error) {
+	parsed, err := r.validator.Validate(ctx, rawURL)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	if err != nil {
+		return nil, "", "", err
+	}
+	httpReq.Header.Set("User-Agent", "github.com/regiellis/mcp-searxng-go/1.0")
+	httpReq.Header.Set("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.5")
+
+	resp, err := r.client.Do(httpReq)
+	if err != nil {
+		return nil, "", "", err
+	}
+	defer resp.Body.Close()
+
+	limited := io.LimitReader(resp.Body, int64(r.cfg.MaxBodySize)+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if int64(len(data)) > int64(r.cfg.MaxBodySize) {
+		data = data[:int(r.cfg.MaxBodySize)]
+	}
+	return data, resp.Header.Get("Content-Type"), resp.Request.URL.String(), nil
+}
+
 func extractContent(contentType string, body []byte, maxTextChars int) (string, string, bool, error) {
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil && contentType != "" {

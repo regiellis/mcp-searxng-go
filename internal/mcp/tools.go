@@ -335,6 +335,19 @@ func toolDefinitions() []types.ToolDefinition {
 			},
 		},
 		{
+			Name:        "fetch_feed",
+			Description: "Fetch and parse an RSS 2.0 or Atom feed into structured items (title, link, published, summary, id), through the same SSRF-safe fetcher as url_read. Useful for news, blog, and release feeds. Deterministic, no LLM.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"url":   map[string]any{"type": "string", "format": "uri", "description": "Feed URL (RSS or Atom)."},
+					"limit": map[string]any{"type": "integer", "minimum": 1, "description": "Max items to return. Default 20, capped at 100."},
+				},
+				"required":             []string{"url"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "save_research",
 			Description: "Persist or append to a research session: a titled, timestamped record of an investigation that survives across calls. Omit id to start a new session (returns its id); pass an existing id to append a note and update title/query/tags. Deterministic, no LLM.",
 			InputSchema: map[string]any{
