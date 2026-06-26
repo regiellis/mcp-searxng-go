@@ -4,6 +4,8 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -96,6 +98,29 @@ func TestReaderRejectsBinaryContent(t *testing.T) {
 	}
 }
 
+func TestReaderExtractsPDF(t *testing.T) {
+	t.Parallel()
+
+	pdfBytes, err := os.ReadFile(filepath.Join("testdata", "sample.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/pdf")
+		_, _ = w.Write(pdfBytes)
+	}))
+	defer server.Close()
+
+	reader := newTestReader()
+	resp, err := reader.Read(context.Background(), types.URLReadRequest{URL: server.URL})
+	if err != nil {
+		t.Fatalf("read pdf url: %v", err)
+	}
+	if !strings.Contains(resp.Content, "Fugu") || !strings.Contains(resp.Content, "caching strategies") {
+		t.Fatalf("PDF text not extracted via Reader: %q", resp.Content)
+	}
+}
+
 func TestReaderTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -119,6 +144,7 @@ func newTestReader() *Reader {
 	return NewReader(config.FetchConfig{
 		Timeout:        time.Second,
 		MaxBodySize:    config.ByteSize(4096),
+		MaxPDFBytes:    config.ByteSize(1 << 20),
 		MaxTextChars:   2048,
 		MaxRedirects:   3,
 		AllowedSchemes: []string{"http", "https"},

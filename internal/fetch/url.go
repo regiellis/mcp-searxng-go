@@ -55,7 +55,7 @@ func (r *Reader) Read(ctx context.Context, req types.URLReadRequest) (types.URLR
 		return types.URLReadResponse{}, err
 	}
 	httpReq.Header.Set("User-Agent", "github.com/regiellis/mcp-searxng-go/1.0")
-	httpReq.Header.Set("Accept", "text/html, text/plain, application/json, application/xml;q=0.9, text/*;q=0.8")
+	httpReq.Header.Set("Accept", "text/html, text/plain, application/pdf, application/json, application/xml;q=0.9, text/*;q=0.8")
 
 	resp, err := r.client.Do(httpReq)
 	if err != nil {
@@ -68,14 +68,21 @@ func (r *Reader) Read(ctx context.Context, req types.URLReadRequest) (types.URLR
 		return types.URLReadResponse{}, fmt.Errorf("non-text content rejected: %s", contentType)
 	}
 
-	limited := io.LimitReader(resp.Body, int64(r.cfg.MaxBodySize)+1)
+	// PDFs are far larger than HTML and must be read whole or they cannot be
+	// parsed, so they get a dedicated, larger body cap.
+	bodyLimit := int64(r.cfg.MaxBodySize)
+	if isPDF(contentType) {
+		bodyLimit = int64(r.cfg.MaxPDFBytes)
+	}
+
+	limited := io.LimitReader(resp.Body, bodyLimit+1)
 	body, err := io.ReadAll(limited)
 	if err != nil {
 		return types.URLReadResponse{}, err
 	}
-	truncated := int64(len(body)) > int64(r.cfg.MaxBodySize)
+	truncated := int64(len(body)) > bodyLimit
 	if truncated {
-		body = body[:int(r.cfg.MaxBodySize)]
+		body = body[:int(bodyLimit)]
 	}
 
 	title, content, textTruncated, err := extractContent(contentType, body, r.cfg.MaxTextChars)
@@ -99,6 +106,9 @@ func extractContent(contentType string, body []byte, maxTextChars int) (string, 
 		return "", "", false, err
 	}
 	switch {
+	case mediaType == "application/pdf":
+		content, truncated, err := ExtractPDFText(body, maxTextChars)
+		return "", content, truncated, err
 	case mediaType == "text/html" || mediaType == "application/xhtml+xml" || strings.Contains(mediaType, "xml"):
 		return ExtractHTMLText(bytes.NewReader(body), maxTextChars)
 	case strings.HasPrefix(mediaType, "text/") || mediaType == "application/json":
@@ -112,6 +122,14 @@ func extractContent(contentType string, body []byte, maxTextChars int) (string, 
 	}
 }
 
+func isPDF(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return strings.HasPrefix(strings.ToLower(contentType), "application/pdf")
+	}
+	return mediaType == "application/pdf"
+}
+
 func isTextLike(contentType string) bool {
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
@@ -122,5 +140,6 @@ func isTextLike(contentType string) bool {
 		mediaType == "application/xml" ||
 		mediaType == "application/xhtml+xml" ||
 		mediaType == "application/rss+xml" ||
-		mediaType == "application/atom+xml"
+		mediaType == "application/atom+xml" ||
+		mediaType == "application/pdf"
 }

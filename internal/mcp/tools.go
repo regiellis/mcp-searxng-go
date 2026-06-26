@@ -206,7 +206,7 @@ func toolDefinitions() []types.ToolDefinition {
 		},
 		{
 			Name:        "url_read",
-			Description: "Fetch a public URL with strict safety checks and readable text extraction.",
+			Description: "Fetch a public URL with strict safety checks and readable text extraction. Handles HTML, plain text, JSON/XML, and PDF documents (text-layer PDFs; scanned/image-only PDFs yield little text).",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

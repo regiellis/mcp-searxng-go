@@ -98,6 +98,7 @@ type ServerConfig struct {
 type FetchConfig struct {
 	Timeout        time.Duration `yaml:"timeout"`
 	MaxBodySize    ByteSize      `yaml:"max_body_size"`
+	MaxPDFBytes    ByteSize      `yaml:"max_pdf_bytes"` // larger body cap for PDFs, which dwarf HTML pages
 	MaxTextChars   int           `yaml:"max_text_chars"`
 	MaxRedirects   int           `yaml:"max_redirects"`
 	AllowedSchemes []string      `yaml:"allowed_schemes"`
@@ -159,6 +160,7 @@ func Default() Config {
 		Fetch: FetchConfig{
 			Timeout:        15 * time.Second,
 			MaxBodySize:    ByteSize(2 << 20),
+			MaxPDFBytes:    ByteSize(16 << 20),
 			MaxTextChars:   12000,
 			MaxRedirects:   4,
 			AllowedSchemes: []string{"http", "https"},
@@ -248,6 +250,9 @@ func (c Config) Validate() error {
 	if c.Fetch.MaxBodySize <= 0 {
 		return errors.New("fetch.max_body_size must be positive")
 	}
+	if c.Fetch.MaxPDFBytes <= 0 {
+		return errors.New("fetch.max_pdf_bytes must be positive")
+	}
 	if c.Fetch.MaxTextChars <= 0 {
 		return errors.New("fetch.max_text_chars must be positive")
 	}
@@ -314,6 +319,7 @@ func applyEnv(cfg *Config) {
 
 	setDuration("MCP_FETCH_TIMEOUT", &cfg.Fetch.Timeout)
 	setByteSize("MCP_FETCH_MAX_BODY_SIZE", &cfg.Fetch.MaxBodySize)
+	setByteSize("MCP_FETCH_MAX_PDF_BYTES", &cfg.Fetch.MaxPDFBytes)
 	setInt("MCP_FETCH_MAX_TEXT_CHARS", &cfg.Fetch.MaxTextChars)
 	setInt("MCP_FETCH_MAX_REDIRECTS", &cfg.Fetch.MaxRedirects)
 	setCSV("MCP_FETCH_ALLOWED_SCHEMES", &cfg.Fetch.AllowedSchemes)
