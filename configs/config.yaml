@@ -75,3 +75,15 @@ security:
 storage:
   enabled: true
   dir: "data"
+
+# OCR for scanned/image-only PDFs (ocr_pdf tool). Shells out to tesseract and
+# pdftoppm (poppler-utils), which must be installed on the host; when absent the
+# tool is advertised but reports OCR is unavailable.
+ocr:
+  enabled: true
+  tesseract_path: "tesseract"
+  pdftoppm_path: "pdftoppm"
+  languages: "eng"
+  dpi: 200
+  max_pages: 10
+  timeout: 2m

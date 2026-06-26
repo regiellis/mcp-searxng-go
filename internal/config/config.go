@@ -25,6 +25,22 @@ type Config struct {
 	Cache    CacheConfig    `yaml:"cache"`
 	Security SecurityConfig `yaml:"security"`
 	Storage  StorageConfig  `yaml:"storage"`
+	OCR      OCRConfig      `yaml:"ocr"`
+}
+
+// OCRConfig configures the ocr_pdf tool, which rasterizes a PDF and runs
+// Tesseract on each page to read scanned/image-only documents. It shells out to
+// tesseract and pdftoppm (poppler-utils), which must be installed on the host;
+// when they are absent the tool is advertised but reports that OCR is
+// unavailable.
+type OCRConfig struct {
+	Enabled       bool          `yaml:"enabled"`
+	TesseractPath string        `yaml:"tesseract_path"`
+	PdftoppmPath  string        `yaml:"pdftoppm_path"`
+	Languages     string        `yaml:"languages"` // tesseract -l value, e.g. "eng"
+	DPI           int           `yaml:"dpi"`
+	MaxPages      int           `yaml:"max_pages"`
+	Timeout       time.Duration `yaml:"timeout"`
 }
 
 // StorageConfig configures on-disk persistence for research sessions and
@@ -186,6 +202,15 @@ func Default() Config {
 			Enabled: true,
 			Dir:     "data",
 		},
+		OCR: OCRConfig{
+			Enabled:       true,
+			TesseractPath: "tesseract",
+			PdftoppmPath:  "pdftoppm",
+			Languages:     "eng",
+			DPI:           200,
+			MaxPages:      10,
+			Timeout:       2 * time.Minute,
+		},
 	}
 }
 
@@ -285,6 +310,17 @@ func (c Config) Validate() error {
 	if c.Storage.Enabled && strings.TrimSpace(c.Storage.Dir) == "" {
 		return errors.New("storage.dir is required when storage is enabled")
 	}
+	if c.OCR.Enabled {
+		if c.OCR.MaxPages <= 0 {
+			return errors.New("ocr.max_pages must be positive")
+		}
+		if c.OCR.DPI <= 0 {
+			return errors.New("ocr.dpi must be positive")
+		}
+		if c.OCR.Timeout <= 0 {
+			return errors.New("ocr.timeout must be positive")
+		}
+	}
 	if c.LLM.Active() {
 		if c.LLM.Timeout <= 0 {
 			return errors.New("llm.timeout must be positive")
@@ -350,6 +386,14 @@ func applyEnv(cfg *Config) {
 
 	setBool("MCP_STORAGE_ENABLED", &cfg.Storage.Enabled)
 	setString("MCP_STORAGE_DIR", &cfg.Storage.Dir)
+
+	setBool("MCP_OCR_ENABLED", &cfg.OCR.Enabled)
+	setString("MCP_OCR_TESSERACT_PATH", &cfg.OCR.TesseractPath)
+	setString("MCP_OCR_PDFTOPPM_PATH", &cfg.OCR.PdftoppmPath)
+	setString("MCP_OCR_LANGUAGES", &cfg.OCR.Languages)
+	setInt("MCP_OCR_DPI", &cfg.OCR.DPI)
+	setInt("MCP_OCR_MAX_PAGES", &cfg.OCR.MaxPages)
+	setDuration("MCP_OCR_TIMEOUT", &cfg.OCR.Timeout)
 }
 
 func setString(key string, target *string) {

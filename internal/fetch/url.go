@@ -106,6 +106,19 @@ func (r *Reader) Read(ctx context.Context, req types.URLReadRequest) (types.URLR
 // Unlike Read it does not reject by content type, since feeds are served under
 // many (and often wrong) types.
 func (r *Reader) FetchRaw(ctx context.Context, rawURL string) (body []byte, contentType, finalURL string, err error) {
+	return r.fetchRaw(ctx, rawURL, int64(r.cfg.MaxBodySize),
+		"application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.5")
+}
+
+// FetchDocument fetches raw bytes with the larger PDF body cap, for documents
+// (such as scanned PDFs handed to OCR) that the small feed/body limit would
+// truncate.
+func (r *Reader) FetchDocument(ctx context.Context, rawURL string) (body []byte, contentType, finalURL string, err error) {
+	return r.fetchRaw(ctx, rawURL, int64(r.cfg.MaxPDFBytes),
+		"application/pdf, application/octet-stream;q=0.9, */*;q=0.5")
+}
+
+func (r *Reader) fetchRaw(ctx context.Context, rawURL string, limit int64, accept string) (body []byte, contentType, finalURL string, err error) {
 	parsed, err := r.validator.Validate(ctx, rawURL)
 	if err != nil {
 		return nil, "", "", err
@@ -116,7 +129,7 @@ func (r *Reader) FetchRaw(ctx context.Context, rawURL string) (body []byte, cont
 		return nil, "", "", err
 	}
 	httpReq.Header.Set("User-Agent", "github.com/regiellis/mcp-searxng-go/1.0")
-	httpReq.Header.Set("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.5")
+	httpReq.Header.Set("Accept", accept)
 
 	resp, err := r.client.Do(httpReq)
 	if err != nil {
@@ -124,13 +137,13 @@ func (r *Reader) FetchRaw(ctx context.Context, rawURL string) (body []byte, cont
 	}
 	defer resp.Body.Close()
 
-	limited := io.LimitReader(resp.Body, int64(r.cfg.MaxBodySize)+1)
+	limited := io.LimitReader(resp.Body, limit+1)
 	data, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, "", "", err
 	}
-	if int64(len(data)) > int64(r.cfg.MaxBodySize) {
-		data = data[:int(r.cfg.MaxBodySize)]
+	if int64(len(data)) > limit {
+		data = data[:int(limit)]
 	}
 	return data, resp.Header.Get("Content-Type"), resp.Request.URL.String(), nil
 }

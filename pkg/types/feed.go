@@ -1,5 +1,20 @@
 package types
 
+// OCRPDFRequest is the input for the ocr_pdf tool.
+type OCRPDFRequest struct {
+	URL      string `json:"url"`
+	MaxPages int    `json:"max_pages,omitempty"`
+}
+
+// OCRPDFResponse is returned by the ocr_pdf tool.
+type OCRPDFResponse struct {
+	SourceURL string `json:"source_url"`
+	Pages     int    `json:"pages"`
+	Languages string `json:"languages"`
+	Chars     int    `json:"chars"`
+	Content   string `json:"content"`
+}
+
 // FetchFeedRequest is the input for the fetch_feed tool.
 type FetchFeedRequest struct {
 	URL   string `json:"url"`

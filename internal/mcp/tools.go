@@ -335,6 +335,19 @@ func toolDefinitions() []types.ToolDefinition {
 			},
 		},
 		{
+			Name:        "ocr_pdf",
+			Description: "Read a scanned or image-only PDF by rasterizing its pages and running OCR (Tesseract) on each. Use this when url_read returns little or no text from a PDF (a sign it has no text layer). Slower than url_read and opt-in. Requires tesseract and pdftoppm (poppler-utils) on the host.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"url":       map[string]any{"type": "string", "format": "uri", "description": "URL of the PDF to OCR."},
+					"max_pages": map[string]any{"type": "integer", "minimum": 1, "description": "Limit pages OCR'd (defaults to the server's configured cap)."},
+				},
+				"required":             []string{"url"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "fetch_feed",
 			Description: "Fetch and parse an RSS 2.0 or Atom feed into structured items (title, link, published, summary, id), through the same SSRF-safe fetcher as url_read. Useful for news, blog, and release feeds. Deterministic, no LLM.",
 			InputSchema: map[string]any{

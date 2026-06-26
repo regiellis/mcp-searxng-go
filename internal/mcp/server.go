@@ -22,6 +22,7 @@ import (
 	"github.com/regiellis/mcp-searxng-go/internal/feed"
 	"github.com/regiellis/mcp-searxng-go/internal/fetch"
 	"github.com/regiellis/mcp-searxng-go/internal/media"
+	"github.com/regiellis/mcp-searxng-go/internal/ocr"
 	"github.com/regiellis/mcp-searxng-go/internal/search"
 	"github.com/regiellis/mcp-searxng-go/internal/store"
 	"github.com/regiellis/mcp-searxng-go/internal/transcript"
@@ -46,6 +47,7 @@ type Server struct {
 	cleaner     *transcript.Cleaner
 	synth       Synthesizer
 	store       *store.Store
+	ocr         *ocr.Engine
 	logger      *slog.Logger
 	searchCache *cache.TTLCache[types.SearchResponse]
 	readCache   *cache.TTLCache[types.URLReadResponse]
@@ -72,6 +74,14 @@ func NewServer(cfg config.Config, searchClient *search.Client, reader *fetch.Rea
 	// Background-job support is only meaningful when the media tools exist.
 	if mediaRunner != nil {
 		s.jobs = media.NewJobManager(cfg.Media.Timeout, logger)
+	}
+	if cfg.OCR.Enabled {
+		s.ocr = ocr.NewEngine(cfg.OCR, logger)
+		if preErr := s.ocr.Preflight(); preErr != nil {
+			logger.Warn("ocr enabled but a backend binary is missing; ocr_pdf will report unavailable until installed", "error", preErr)
+		} else {
+			logger.Info("ocr enabled", "languages", s.ocr.Languages())
+		}
 	}
 	return s
 }
@@ -611,6 +621,16 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 			return responseError(req.ID, errInvalidParams, "invalid url_read arguments", map[string]any{"detail": err.Error()})
 		}
 		result, err := s.runRead(ctx, input)
+		if err != nil {
+			return responseError(req.ID, errInvalidParams, err.Error(), nil)
+		}
+		return s.toolResult(req.ID, result)
+	case "ocr_pdf":
+		var input types.OCRPDFRequest
+		if err := json.Unmarshal(params.Arguments, &input); err != nil {
+			return responseError(req.ID, errInvalidParams, "invalid ocr_pdf arguments", map[string]any{"detail": err.Error()})
+		}
+		result, err := s.runOCRPDF(ctx, input)
 		if err != nil {
 			return responseError(req.ID, errInvalidParams, err.Error(), nil)
 		}
@@ -1227,6 +1247,44 @@ const (
 	feedItemDefault = 20
 	feedItemMax     = 100
 )
+
+// runOCRPDF fetches a PDF (with the larger document body cap) and runs OCR over
+// its rasterized pages. OCR is an explicit, opt-in tool — it is slow and shells
+// out to external binaries — so url_read stays fast and text-layer only; an
+// agent reaches for ocr_pdf when a PDF has no usable text layer.
+func (s *Server) runOCRPDF(ctx context.Context, req types.OCRPDFRequest) (types.OCRPDFResponse, error) {
+	if s.ocr == nil {
+		return types.OCRPDFResponse{}, fmt.Errorf("ocr is disabled")
+	}
+	if !s.ocr.Available() {
+		return types.OCRPDFResponse{}, fmt.Errorf("ocr is unavailable: install tesseract and pdftoppm (poppler-utils) on the host")
+	}
+	if strings.TrimSpace(req.URL) == "" {
+		return types.OCRPDFResponse{}, fmt.Errorf("url is required")
+	}
+
+	s.logger.Info("tool start", "tool", "ocr_pdf", "url", req.URL)
+	body, _, finalURL, err := s.reader.FetchDocument(ctx, req.URL)
+	if err != nil {
+		s.logger.Error("tool failure", "tool", "ocr_pdf", "error", err)
+		return types.OCRPDFResponse{}, err
+	}
+
+	result, err := s.ocr.PDFText(ctx, body, req.MaxPages)
+	if err != nil {
+		s.logger.Error("tool failure", "tool", "ocr_pdf", "error", err)
+		return types.OCRPDFResponse{}, err
+	}
+
+	s.logger.Info("tool end", "tool", "ocr_pdf", "pages", result.Pages, "chars", len(result.Text))
+	return types.OCRPDFResponse{
+		SourceURL: finalURL,
+		Pages:     result.Pages,
+		Languages: s.ocr.Languages(),
+		Chars:     len(result.Text),
+		Content:   result.Text,
+	}, nil
+}
 
 func (s *Server) runFetchFeed(ctx context.Context, req types.FetchFeedRequest) (types.FetchFeedResponse, error) {
 	if strings.TrimSpace(req.URL) == "" {
