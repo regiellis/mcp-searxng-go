@@ -140,8 +140,10 @@ func (c *Client) Search(ctx context.Context, category string, req types.SearchRe
 		count = ep.maxCount
 	}
 
-	relative := &urlpkg.URL{Path: ep.path}
-	values := relative.Query()
+	// JoinPath keeps the base URL's path prefix (e.g. /res/v1); resolving the
+	// endpoint as an absolute-path reference would silently drop it.
+	target := c.baseURL.JoinPath(ep.path)
+	values := target.Query()
 	values.Set("q", query)
 	values.Set("count", strconv.Itoa(count))
 	if lang := braveLang(req.Language); lang != "" {
@@ -152,9 +154,9 @@ func (c *Client) Search(ctx context.Context, category string, req types.SearchRe
 			values.Set("freshness", freshness)
 		}
 	}
-	relative.RawQuery = values.Encode()
+	target.RawQuery = values.Encode()
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL.ResolveReference(relative).String(), nil)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
 		return nil, err
 	}

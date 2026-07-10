@@ -136,6 +136,36 @@ func TestSearchImagesUsesImageEndpoint(t *testing.T) {
 	}
 }
 
+// TestSearchKeepsBaseURLPathPrefix pins the regression where the endpoint path
+// was resolved as an absolute-path reference, silently dropping the base URL's
+// /res/v1 prefix and earning an empty-body 403 from the real API.
+func TestSearchKeepsBaseURLPathPrefix(t *testing.T) {
+	t.Parallel()
+
+	server := newServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/res/v1/web/search" {
+			t.Errorf("expected /res/v1/web/search, got %q", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"web": map[string]any{
+				"results": []map[string]any{
+					{"title": "Result", "url": "https://one.example", "description": "x"},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := newTestClient(t, server.URL+"/res/v1")
+	results, err := client.Search(context.Background(), "general", types.SearchRequest{Query: "golang"}, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+}
+
 func TestSearchUnmappedCategoryReturnsNothing(t *testing.T) {
 	t.Parallel()
 
