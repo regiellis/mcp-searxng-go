@@ -1,6 +1,9 @@
 searxng:
   base_url: "http://127.0.0.1:7777"
-  timeout: 10s
+  # Client-side wait for SearXNG's reply, not a load control: SearXNG fans out
+  # to upstream engines either way. Cold queries can take >10s, and the only
+  # caller is an agent that can afford to wait.
+  timeout: 20s
   default_language: "all"
   default_time_range: ""
   max_limit: 10
