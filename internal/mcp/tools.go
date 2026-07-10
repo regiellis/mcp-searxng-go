@@ -218,7 +218,7 @@ func toolDefinitions() []types.ToolDefinition {
 		},
 		{
 			Name:        "download_video",
-			Description: "Download a video (or its audio) at best quality via yt-dlp into the server media directory. Returns the saved file path and metadata. This can take a while for large videos; pass async=true to run it in the background and get a job_id to poll with media_job_status instead of blocking.",
+			Description: "Download a video (or its audio) at best quality via yt-dlp into the server media directory. Returns the saved file path, metadata, and (in HTTP mode) a download_url where the file itself can be fetched. This can take a while for large videos; pass async=true to run it in the background and get a job_id to poll with media_job_status instead of blocking.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -233,7 +233,7 @@ func toolDefinitions() []types.ToolDefinition {
 		},
 		{
 			Name:        "transcode_media",
-			Description: "Convert or compress a media file already in the server media directory using ffmpeg. Path must reference a file inside that directory. Transcoding can take a while; pass async=true to run it in the background and get a job_id to poll with media_job_status instead of blocking.",
+			Description: "Convert or compress a media file already in the server media directory using ffmpeg. Path must reference a file inside that directory. The result includes (in HTTP mode) a download_url where the output file can be fetched. Transcoding can take a while; pass async=true to run it in the background and get a job_id to poll with media_job_status instead of blocking.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -252,7 +252,7 @@ func toolDefinitions() []types.ToolDefinition {
 		},
 		{
 			Name:        "download_subtitles",
-			Description: "Download subtitle/caption tracks for a video URL via yt-dlp and save them to the server media directory for further work. This can take a while; pass async=true to run it in the background and get a job_id to poll with media_job_status instead of blocking.",
+			Description: "Download subtitle/caption tracks for a video URL via yt-dlp and save them to the server media directory for further work. Each returned file includes its server path plus (in HTTP mode) a download_url where the raw subtitle file can be fetched directly; give that URL to the user when they want the file itself. This can take a while; pass async=true to run it in the background and get a job_id to poll with media_job_status instead of blocking.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -323,7 +323,7 @@ func toolDefinitions() []types.ToolDefinition {
 		},
 		{
 			Name:        "read_media_file",
-			Description: "Read the contents of a file inside the server media directory, such as a subtitle returned by download_subtitles. Returns UTF-8 text when possible, otherwise base64. Use this to retrieve files the other media tools saved server-side.",
+			Description: "Read the contents of a file inside the server media directory, such as a subtitle returned by download_subtitles. Returns UTF-8 text when possible, otherwise base64, plus (in HTTP mode) a download_url where the raw file can be fetched whole. Use this to retrieve files the other media tools saved server-side; prefer sharing the download_url when the user wants the file rather than its text.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

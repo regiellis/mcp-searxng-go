@@ -95,6 +95,12 @@ func (r *Runner) Preflight() error {
 // OutputDir returns the sandbox root for produced files.
 func (r *Runner) OutputDir() string { return r.outputDir }
 
+// ResolvePath validates a caller-supplied path (absolute or relative) against
+// the sandbox and returns its absolute location inside the output directory.
+// It exists so transports (for example the HTTP /files endpoint) can serve
+// produced files with the same traversal defenses as the media tools.
+func (r *Runner) ResolvePath(raw string) (string, error) { return r.resolveInOutput(raw) }
+
 // Download fetches the best-quality stream (or audio) for a URL via yt-dlp.
 func (r *Runner) Download(ctx context.Context, req types.DownloadVideoRequest) (types.DownloadVideoResponse, error) {
 	sourceURL := strings.TrimSpace(req.URL)

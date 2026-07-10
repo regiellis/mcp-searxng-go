@@ -113,7 +113,7 @@ searxng:
 server:
   mode: "http"              # Options: "stdio" or "http"
   address: "0.0.0.0:8081"   # Listening address for HTTP mode
-  public_base_url: ""       # Optional: preferred external base URL for logs/debug output
+  public_base_url: ""       # Optional: external base URL used for logs/debug output and media download_url links (falls back to the request origin)
   read_timeout: 15s
   write_timeout: 15s
   log_level: "info" # Options: "debug", "info", "warn", "error"
@@ -199,6 +199,9 @@ curl http://127.0.0.1:8081/healthz
 curl http://127.0.0.1:8081/mcp
 curl http://127.0.0.1:8081/tools
 curl http://127.0.0.1:8081/debug
+# Fetch a file produced by the media tools (path relative to media output_dir);
+# media tool responses include this as download_url.
+curl -O http://127.0.0.1:8081/files/subs-123456/video.en.srt
 ```
 
 For browser-based MCP clients such as llama.cpp WebUI, use a LAN URL like:

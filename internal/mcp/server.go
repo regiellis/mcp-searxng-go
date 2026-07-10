@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"net/http"
 	urlpkg "net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -148,6 +150,7 @@ func (s *Server) HTTPHandler() http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+	mux.HandleFunc("/files/", s.serveMediaFile)
 	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
 		applyCORSHeaders(w)
 		if r.Method == http.MethodGet {
@@ -174,9 +177,132 @@ func (s *Server) HTTPHandler() http.Handler {
 			writeJSON(w, http.StatusBadRequest, responseError(nil, errParse, "failed to parse request", nil))
 			return
 		}
-		writeJSON(w, http.StatusOK, s.handle(r.Context(), req))
+		// Carry the request's base URL so media tool responses can mint
+		// absolute download_url links even when public_base_url is unset.
+		ctx := context.WithValue(r.Context(), requestBaseURLKey{}, requestBaseURL(r))
+		writeJSON(w, http.StatusOK, s.handle(ctx, req))
 	})
 	return mux
+}
+
+// requestBaseURLKey carries the origin ("scheme://host") of the HTTP request
+// currently being served, for building absolute /files download URLs.
+type requestBaseURLKey struct{}
+
+// requestBaseURL reconstructs the origin the client used to reach the server,
+// honoring reverse-proxy forwarding headers.
+func requestBaseURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); proto != "" {
+		scheme = proto
+	}
+	host := r.Host
+	if fwd := strings.TrimSpace(r.Header.Get("X-Forwarded-Host")); fwd != "" {
+		host = fwd
+	}
+	if host == "" {
+		return ""
+	}
+	return scheme + "://" + host
+}
+
+// serveMediaFile streams a produced file (e.g. a downloaded subtitle) from the
+// media sandbox over plain HTTP so callers can retrieve it as a real file
+// instead of inlining its content through read_media_file. Paths are validated
+// with the same traversal defenses as the media tools; directories are not
+// listed.
+func (s *Server) serveMediaFile(w http.ResponseWriter, r *http.Request) {
+	applyCORSHeaders(w)
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if s.media == nil {
+		http.Error(w, "media tools are disabled", http.StatusNotFound)
+		return
+	}
+	rel := strings.TrimPrefix(r.URL.Path, "/files/")
+	if rel == "" {
+		http.Error(w, "file path required", http.StatusBadRequest)
+		return
+	}
+	path, err := s.media.ResolvePath(rel)
+	if err != nil {
+		http.Error(w, "invalid file path", http.StatusBadRequest)
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+info.Name()+"\"")
+	http.ServeFile(w, r, path)
+}
+
+// fileBaseURL picks the base URL for download links: the configured
+// public_base_url when set, otherwise the origin of the HTTP request being
+// served. Empty in stdio mode, where no /files endpoint exists.
+func (s *Server) fileBaseURL(ctx context.Context) string {
+	if base := strings.TrimSpace(s.cfg.Server.PublicBaseURL); base != "" {
+		return strings.TrimRight(base, "/")
+	}
+	if base, ok := ctx.Value(requestBaseURLKey{}).(string); ok {
+		return strings.TrimRight(base, "/")
+	}
+	return ""
+}
+
+// downloadURLFor maps an absolute sandbox path to its /files URL. It returns
+// "" when the path escapes the sandbox or no base URL is available.
+func (s *Server) downloadURLFor(base, absPath string) string {
+	if base == "" || s.media == nil {
+		return ""
+	}
+	rel, err := filepath.Rel(s.media.OutputDir(), absPath)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return ""
+	}
+	segments := strings.Split(filepath.ToSlash(rel), "/")
+	for i, seg := range segments {
+		segments[i] = urlpkg.PathEscape(seg)
+	}
+	return base + "/files/" + strings.Join(segments, "/")
+}
+
+// decorateMediaResult stamps download_url onto media tool payloads that carry
+// produced files. It works on copies so results cached in the job manager are
+// never mutated (the base URL can differ between requests).
+func (s *Server) decorateMediaResult(ctx context.Context, result any) any {
+	base := s.fileBaseURL(ctx)
+	if base == "" {
+		return result
+	}
+	switch payload := result.(type) {
+	case types.SubtitlesResponse:
+		files := make([]types.MediaFile, len(payload.Files))
+		for i, f := range payload.Files {
+			f.DownloadURL = s.downloadURLFor(base, f.Path)
+			files[i] = f
+		}
+		payload.Files = files
+		return payload
+	case types.DownloadVideoResponse:
+		payload.File.DownloadURL = s.downloadURLFor(base, payload.File.Path)
+		return payload
+	case types.TranscodeResponse:
+		payload.Input.DownloadURL = s.downloadURLFor(base, payload.Input.Path)
+		payload.Output.DownloadURL = s.downloadURLFor(base, payload.Output.Path)
+		return payload
+	case types.ReadMediaFileResponse:
+		payload.DownloadURL = s.downloadURLFor(base, payload.Path)
+		return payload
+	default:
+		return result
+	}
 }
 
 func (s *Server) handle(ctx context.Context, req types.JSONRPCRequest) types.JSONRPCResponse {
@@ -558,6 +684,7 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 		if !ok {
 			return responseError(req.ID, errInvalidParams, "unknown job_id", map[string]any{"job_id": input.JobID})
 		}
+		view.Result = s.decorateMediaResult(ctx, view.Result)
 		return s.toolResult(req.ID, view)
 	case "transcript_chapters":
 		var input types.TranscriptChaptersRequest
@@ -594,7 +721,7 @@ func (s *Server) handleToolCall(ctx context.Context, req types.JSONRPCRequest) t
 		if err != nil {
 			return responseError(req.ID, errInternal, err.Error(), nil)
 		}
-		return s.toolResult(req.ID, result)
+		return s.toolResult(req.ID, s.decorateMediaResult(ctx, result))
 	case "translate_subtitles":
 		var input types.TranslateSubtitlesRequest
 		if err := json.Unmarshal(params.Arguments, &input); err != nil {
@@ -1445,7 +1572,7 @@ func (s *Server) runMediaOp(ctx context.Context, id any, kind string, async bool
 	if err != nil {
 		return responseError(id, errInternal, err.Error(), nil)
 	}
-	return s.toolResult(id, result)
+	return s.toolResult(id, s.decorateMediaResult(ctx, result))
 }
 
 // runTranslateSubtitles reads a subtitle file from the media sandbox and

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -715,5 +716,212 @@ func newHTTPTestServer(t *testing.T, handler http.Handler) *localHTTPServer {
 			_ = srv.Shutdown(context.Background())
 			_ = listener.Close()
 		},
+	}
+}
+
+func TestFilesEndpointServesMediaFiles(t *testing.T) {
+	t.Parallel()
+
+	mediaDir := t.TempDir()
+	subDir := filepath.Join(mediaDir, "subs-test")
+	if err := os.Mkdir(subDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	content := []byte("1\n00:00:00,000 --> 00:00:02,000\nhello\n")
+	if err := os.WriteFile(filepath.Join(subDir, "video.en.srt"), content, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	// A file outside the sandbox that traversal must never reach.
+	outside := filepath.Join(filepath.Dir(mediaDir), "secret.txt")
+	if err := os.WriteFile(outside, []byte("secret"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+
+	server := newMediaTestServer(t, mediaDir, "yt-dlp")
+	httpServer := newHTTPTestServer(t, server.HTTPHandler())
+	defer httpServer.Close()
+
+	resp, err := http.Get(httpServer.URL + "/files/subs-test/video.en.srt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !bytes.Equal(body, content) {
+		t.Fatalf("expected file contents, got status %d body %q", resp.StatusCode, body)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "video.en.srt") {
+		t.Fatalf("expected attachment disposition with filename, got %q", cd)
+	}
+
+	for name, check := range map[string]struct {
+		method string
+		path   string
+	}{
+		"missing file":   {http.MethodGet, "/files/nope.srt"},
+		"directory":      {http.MethodGet, "/files/subs-test"},
+		"empty path":     {http.MethodGet, "/files/"},
+		"traversal":      {http.MethodGet, "/files/..%2Fsecret.txt"},
+		"method not GET": {http.MethodPost, "/files/subs-test/video.en.srt"},
+	} {
+		req, reqErr := http.NewRequest(check.method, httpServer.URL+check.path, nil)
+		if reqErr != nil {
+			t.Fatal(reqErr)
+		}
+		res, doErr := http.DefaultTransport.RoundTrip(req) // no client-side path cleaning or redirects
+		if doErr != nil {
+			t.Fatalf("%s: %v", name, doErr)
+		}
+		leaked, _ := io.ReadAll(res.Body)
+		_ = res.Body.Close()
+		if res.StatusCode == http.StatusOK && bytes.Contains(leaked, []byte("secret")) {
+			t.Fatalf("%s: escaped the sandbox: %q", name, leaked)
+		}
+		if res.StatusCode < 400 && res.StatusCode != http.StatusMovedPermanently {
+			t.Fatalf("%s: expected an error status, got %d", name, res.StatusCode)
+		}
+	}
+}
+
+func TestReadMediaFileIncludesDownloadURL(t *testing.T) {
+	t.Parallel()
+
+	mediaDir := t.TempDir()
+	content := []byte("1\n00:00:00,000 --> 00:00:02,000\nhola\n")
+	if err := os.WriteFile(filepath.Join(mediaDir, "clip.en.srt"), content, 0o640); err != nil {
+		t.Fatal(err)
+	}
+
+	server := newMediaTestServer(t, mediaDir, "yt-dlp")
+	httpServer := newHTTPTestServer(t, server.HTTPHandler())
+	defer httpServer.Close()
+
+	// Over HTTP with no public_base_url configured, download_url is minted from
+	// the request origin.
+	body := `{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"read_media_file","arguments":{"path":"clip.en.srt"}}}`
+	resp, err := http.Post(httpServer.URL+"/mcp", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rpc struct {
+		Result struct {
+			StructuredContent types.ReadMediaFileResponse `json:"structuredContent"`
+		} `json:"result"`
+		Error any `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rpc); err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if rpc.Error != nil {
+		t.Fatalf("unexpected rpc error: %#v", rpc.Error)
+	}
+	want := httpServer.URL + "/files/clip.en.srt"
+	if rpc.Result.StructuredContent.DownloadURL != want {
+		t.Fatalf("download_url = %q, want %q", rpc.Result.StructuredContent.DownloadURL, want)
+	}
+
+	// The minted URL actually serves the file.
+	fileResp, err := http.Get(rpc.Result.StructuredContent.DownloadURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := io.ReadAll(fileResp.Body)
+	_ = fileResp.Body.Close()
+	if fileResp.StatusCode != http.StatusOK || !bytes.Equal(got, content) {
+		t.Fatalf("fetching download_url: status %d body %q", fileResp.StatusCode, got)
+	}
+
+	// A configured public_base_url wins over the request origin.
+	server.cfg.Server.PublicBaseURL = "https://mcp.example.com/"
+	resp2, err := http.Post(httpServer.URL+"/mcp", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.NewDecoder(resp2.Body).Decode(&rpc); err != nil {
+		t.Fatal(err)
+	}
+	_ = resp2.Body.Close()
+	if rpc.Result.StructuredContent.DownloadURL != "https://mcp.example.com/files/clip.en.srt" {
+		t.Fatalf("public_base_url download_url = %q", rpc.Result.StructuredContent.DownloadURL)
+	}
+
+	// Without an HTTP request context (stdio mode), no URL is minted.
+	server.cfg.Server.PublicBaseURL = ""
+	direct := server.handle(context.Background(), mapRequest("tools/call", map[string]any{
+		"name":      "read_media_file",
+		"arguments": map[string]any{"path": "clip.en.srt"},
+	}))
+	stdioResult, ok := direct.Result.(map[string]any)["structuredContent"].(types.ReadMediaFileResponse)
+	if !ok {
+		t.Fatalf("unexpected structuredContent: %#v", direct.Result)
+	}
+	if stdioResult.DownloadURL != "" {
+		t.Fatalf("expected empty download_url in stdio mode, got %q", stdioResult.DownloadURL)
+	}
+}
+
+func TestDownloadSubtitlesIncludesDownloadURL(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell stub not supported on windows")
+	}
+
+	mediaDir := t.TempDir()
+	stub := filepath.Join(t.TempDir(), "yt-dlp")
+	script := "#!/bin/sh\n" + `outdir="."
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-P" ]; then outdir="$a"; fi
+  prev="$a"
+done
+printf '1\n00:00:00,000 --> 00:00:02,000\nhello\n' > "$outdir/video.en.srt"
+`
+	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	src := newHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer src.Close()
+
+	server := newMediaTestServer(t, mediaDir, stub)
+	httpServer := newHTTPTestServer(t, server.HTTPHandler())
+	defer httpServer.Close()
+
+	body := `{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"download_subtitles","arguments":{"url":"` + src.URL + `"}}}`
+	resp, err := http.Post(httpServer.URL+"/mcp", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rpc struct {
+		Result struct {
+			StructuredContent types.SubtitlesResponse `json:"structuredContent"`
+		} `json:"result"`
+		Error any `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rpc); err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if rpc.Error != nil {
+		t.Fatalf("unexpected rpc error: %#v", rpc.Error)
+	}
+	files := rpc.Result.StructuredContent.Files
+	if len(files) != 1 || files[0].DownloadURL == "" {
+		t.Fatalf("expected one file with a download_url, got %#v", files)
+	}
+	if !strings.HasPrefix(files[0].DownloadURL, httpServer.URL+"/files/subs-") {
+		t.Fatalf("unexpected download_url %q", files[0].DownloadURL)
+	}
+
+	fileResp, err := http.Get(files[0].DownloadURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := io.ReadAll(fileResp.Body)
+	_ = fileResp.Body.Close()
+	if fileResp.StatusCode != http.StatusOK || !strings.Contains(string(got), "hello") {
+		t.Fatalf("fetching subtitle download_url: status %d body %q", fileResp.StatusCode, got)
 	}
 }

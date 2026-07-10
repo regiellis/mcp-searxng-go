@@ -18,7 +18,10 @@ brave:
 # Media tools (download_video, transcode_media, download_subtitles, probe_media)
 # shell out to yt-dlp, ffmpeg, and ffprobe, which must be installed on the host.
 # All output is confined to output_dir (relative paths resolve against the
-# process working directory).
+# process working directory). In HTTP mode, produced files are also served for
+# direct download at /files/<path-inside-output_dir>, and media tool responses
+# include a download_url pointing there (based on server.public_base_url when
+# set, otherwise the origin the request arrived on).
 media:
   enabled: true
   output_dir: "media"

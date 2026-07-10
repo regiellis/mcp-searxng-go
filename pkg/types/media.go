@@ -3,15 +3,18 @@ package types
 import "time"
 
 // MediaFile describes a file produced by the media tools. Path is an absolute
-// path inside the server's configured media output directory.
+// path inside the server's configured media output directory. DownloadURL, when
+// present, is an HTTP URL where the raw file can be fetched from the server's
+// /files endpoint (HTTP mode only).
 type MediaFile struct {
-	Path      string `json:"path"`
-	Filename  string `json:"filename"`
-	Ext       string `json:"ext,omitempty"`
-	SizeBytes int64  `json:"size_bytes"`
-	Title     string `json:"title,omitempty"`
-	Duration  string `json:"duration,omitempty"`
-	Language  string `json:"language,omitempty"`
+	Path        string `json:"path"`
+	Filename    string `json:"filename"`
+	Ext         string `json:"ext,omitempty"`
+	SizeBytes   int64  `json:"size_bytes"`
+	Title       string `json:"title,omitempty"`
+	Duration    string `json:"duration,omitempty"`
+	Language    string `json:"language,omitempty"`
+	DownloadURL string `json:"download_url,omitempty"`
 }
 
 // DownloadVideoRequest is the input for the download_video tool.
@@ -216,12 +219,15 @@ type TranslateSubtitlesResponse struct {
 
 // ReadMediaFileResponse returns the contents of a file in the media directory.
 // Encoding is "text" for valid UTF-8 (e.g. subtitles) or "base64" for binary.
+// DownloadURL, when present, is an HTTP URL where the raw file can be fetched
+// whole from the server's /files endpoint (HTTP mode only).
 type ReadMediaFileResponse struct {
-	Path      string `json:"path"`
-	Filename  string `json:"filename"`
-	Ext       string `json:"ext,omitempty"`
-	SizeBytes int64  `json:"size_bytes"`
-	Encoding  string `json:"encoding"`
-	Content   string `json:"content"`
-	Truncated bool   `json:"truncated,omitempty"`
+	Path        string `json:"path"`
+	Filename    string `json:"filename"`
+	Ext         string `json:"ext,omitempty"`
+	SizeBytes   int64  `json:"size_bytes"`
+	Encoding    string `json:"encoding"`
+	Content     string `json:"content"`
+	Truncated   bool   `json:"truncated,omitempty"`
+	DownloadURL string `json:"download_url,omitempty"`
 }
