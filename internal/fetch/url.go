@@ -1,0 +1,193 @@
+package fetch
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"mime"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/regiellis/mcp-searxng-go/internal/config"
+	"github.com/regiellis/mcp-searxng-go/pkg/client"
+	"github.com/regiellis/mcp-searxng-go/pkg/types"
+)
+
+// Reader fetches and extracts public text content.
+type Reader struct {
+	client    *http.Client
+	cfg       config.FetchConfig
+	validator URLValidator
+	logger    *slog.Logger
+}
+
+// NewReader returns a URL reader with strict HTTP safety limits.
+func NewReader(cfg config.FetchConfig, validator URLValidator, logger *slog.Logger) *Reader {
+	return &Reader{
+		cfg:       cfg,
+		validator: validator,
+		logger:    logger,
+		client: client.New(client.Options{
+			Timeout:               cfg.Timeout,
+			DialTimeout:           5 * time.Second,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			IdleConnTimeout:       30 * time.Second,
+			MaxRedirects:          cfg.MaxRedirects,
+			Guard:                 validator.Guard.DialGuard,
+		}),
+	}
+}
+
+// Read fetches a URL and extracts readable text.
+func (r *Reader) Read(ctx context.Context, req types.URLReadRequest) (types.URLReadResponse, error) {
+	parsed, err := r.validator.Validate(ctx, req.URL)
+	if err != nil {
+		return types.URLReadResponse{}, err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	if err != nil {
+		return types.URLReadResponse{}, err
+	}
+	httpReq.Header.Set("User-Agent", "github.com/regiellis/mcp-searxng-go/1.0")
+	httpReq.Header.Set("Accept", "text/html, text/plain, application/pdf, application/json, application/xml;q=0.9, text/*;q=0.8")
+
+	resp, err := r.client.Do(httpReq)
+	if err != nil {
+		return types.URLReadResponse{}, err
+	}
+	defer resp.Body.Close()
+
+	contentType := resp.Header.Get("Content-Type")
+	if !isTextLike(contentType) {
+		return types.URLReadResponse{}, fmt.Errorf("non-text content rejected: %s", contentType)
+	}
+
+	// PDFs are far larger than HTML and must be read whole or they cannot be
+	// parsed, so they get a dedicated, larger body cap.
+	bodyLimit := int64(r.cfg.MaxBodySize)
+	if isPDF(contentType) {
+		bodyLimit = int64(r.cfg.MaxPDFBytes)
+	}
+
+	limited := io.LimitReader(resp.Body, bodyLimit+1)
+	body, err := io.ReadAll(limited)
+	if err != nil {
+		return types.URLReadResponse{}, err
+	}
+	truncated := int64(len(body)) > bodyLimit
+	if truncated {
+		body = body[:int(bodyLimit)]
+	}
+
+	title, content, textTruncated, err := extractContent(contentType, body, r.cfg.MaxTextChars)
+	if err != nil {
+		return types.URLReadResponse{}, err
+	}
+
+	return types.URLReadResponse{
+		FinalURL:    resp.Request.URL.String(),
+		ContentType: contentType,
+		StatusCode:  resp.StatusCode,
+		Title:       title,
+		Content:     content,
+		Truncated:   truncated || textTruncated,
+	}, nil
+}
+
+// FetchRaw fetches a URL through the same SSRF guard, redirect, and size limits
+// as Read, but returns the raw (capped) body without text extraction. It is used
+// for structured formats such as RSS/Atom feeds that the caller parses itself.
+// Unlike Read it does not reject by content type, since feeds are served under
+// many (and often wrong) types.
+func (r *Reader) FetchRaw(ctx context.Context, rawURL string) (body []byte, contentType, finalURL string, err error) {
+	return r.fetchRaw(ctx, rawURL, int64(r.cfg.MaxBodySize),
+		"application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.5")
+}
+
+// FetchDocument fetches raw bytes with the larger PDF body cap, for documents
+// (such as scanned PDFs handed to OCR) that the small feed/body limit would
+// truncate.
+func (r *Reader) FetchDocument(ctx context.Context, rawURL string) (body []byte, contentType, finalURL string, err error) {
+	return r.fetchRaw(ctx, rawURL, int64(r.cfg.MaxPDFBytes),
+		"application/pdf, application/octet-stream;q=0.9, */*;q=0.5")
+}
+
+func (r *Reader) fetchRaw(ctx context.Context, rawURL string, limit int64, accept string) (body []byte, contentType, finalURL string, err error) {
+	parsed, err := r.validator.Validate(ctx, rawURL)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	if err != nil {
+		return nil, "", "", err
+	}
+	httpReq.Header.Set("User-Agent", "github.com/regiellis/mcp-searxng-go/1.0")
+	httpReq.Header.Set("Accept", accept)
+
+	resp, err := r.client.Do(httpReq)
+	if err != nil {
+		return nil, "", "", err
+	}
+	defer resp.Body.Close()
+
+	limited := io.LimitReader(resp.Body, limit+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if int64(len(data)) > limit {
+		data = data[:int(limit)]
+	}
+	return data, resp.Header.Get("Content-Type"), resp.Request.URL.String(), nil
+}
+
+func extractContent(contentType string, body []byte, maxTextChars int) (string, string, bool, error) {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil && contentType != "" {
+		return "", "", false, err
+	}
+	switch {
+	case mediaType == "application/pdf":
+		content, truncated, err := ExtractPDFText(body, maxTextChars)
+		return "", content, truncated, err
+	case mediaType == "text/html" || mediaType == "application/xhtml+xml" || strings.Contains(mediaType, "xml"):
+		return ExtractHTMLText(bytes.NewReader(body), maxTextChars)
+	case strings.HasPrefix(mediaType, "text/") || mediaType == "application/json":
+		content := string(body)
+		if len(content) > maxTextChars {
+			return "", content[:maxTextChars], true, nil
+		}
+		return "", content, false, nil
+	default:
+		return "", "", false, errors.New("unsupported content type")
+	}
+}
+
+func isPDF(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return strings.HasPrefix(strings.ToLower(contentType), "application/pdf")
+	}
+	return mediaType == "application/pdf"
+}
+
+func isTextLike(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return strings.HasPrefix(strings.ToLower(contentType), "text/")
+	}
+	return strings.HasPrefix(mediaType, "text/") ||
+		mediaType == "application/json" ||
+		mediaType == "application/xml" ||
+		mediaType == "application/xhtml+xml" ||
+		mediaType == "application/rss+xml" ||
+		mediaType == "application/atom+xml" ||
+		mediaType == "application/pdf"
+}

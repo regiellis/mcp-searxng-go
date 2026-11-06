@@ -1,0 +1,12 @@
+bin/
+build/
+.cache/
+.task/
+.codex
+.codex/
+AGENTS.md
+*.log
+.env
+/media/
+/downloads/
+/data/

@@ -1,0 +1,884 @@
+{
+ "general_infobox": {
+  "query": "albert einstein",
+  "results": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Albert_Einstein",
+    "title": "Albert Einstein - Wikipedia",
+    "content": "Albert Einstein[a] (14 March 1879 - 18 April 1955) was a German-born theoretical physicist best known for developing the theory of relativity. Einstein also made important contributions to quantum theory. [1][5] His mass-energy equivalence formula E = mc2, which arises from special relativity, has been called \"the world's most famous equation\". [6] He received the 1921 Nobel Prize in ...",
+    "engine": "bing",
+    "template": "default.html",
+    "img_src": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "duckduckgo",
+     "yandex",
+     "bing",
+     "google cse",
+     "qwant",
+     "yahoo"
+    ],
+    "score": 36.0,
+    "category": "general",
+    "publishedDate": null,
+    "iframe_src": null
+   },
+   {
+    "url": "https://www.britannica.com/biography/Albert-Einstein",
+    "title": "Albert Einstein | Biography, Relativity, Education, Discoveries, & Facts",
+    "content": "Albert Einstein was a famous physicist. His research spanned from quantum mechanics to theories about gravity and motion. After publishing some groundbreaking papers, Einstein toured the world and gave speeches about his discoveries. In 1921 he won the Nobel Prize for Physics for his discovery of the photoelectric effect.",
+    "engine": "bing",
+    "template": "default.html",
+    "img_src": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "duckduckgo",
+     "bing",
+     "google cse",
+     "qwant",
+     "yahoo"
+    ],
+    "score": 11.0,
+    "category": "general",
+    "publishedDate": null,
+    "iframe_src": null
+   }
+  ],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [
+   {
+    "infobox": "Albert Einstein",
+    "id": "https://en.wikipedia.org/wiki/Albert_Einstein",
+    "content": "Albert Einstein was a German-born theoretical physicist best known for developing the theory of relativity. Einstein also made important contributions to quantum theory. His mass–energy equivalence formula E = mc2, which arises from special relativity, has been called \"the world's most famous equation\". He received the 1921 Nobel Prize in Physics for \"his services to theoretical physics, and especially for his discovery of the law of the photoelectric effect\".",
+    "img_src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/28/Albert_Einstein_Head_cleaned.jpg/330px-Albert_Einstein_Head_cleaned.jpg",
+    "urls": [
+     {
+      "title": "Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Albert_Einstein"
+     },
+     {
+      "title": "Official website",
+      "url": "https://alberteinstein.com",
+      "official": true
+     },
+     {
+      "title": "MusicBrainz",
+      "url": "http://musicbrainz.org/artist/c98c325e-7277-46e8-8b44-e3517f3e041a"
+     },
+     {
+      "title": "Facebook",
+      "url": "https://facebook.com/AlbertEinstein"
+     }
+    ],
+    "engine": "wikidata",
+    "url": null,
+    "template": "default.html",
+    "title": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "wikidata",
+     "wikipedia"
+    ],
+    "positions": "",
+    "score": 0,
+    "category": "",
+    "publishedDate": null,
+    "iframe_src": null,
+    "attributes": [
+     {
+      "label": "Date of birth",
+      "value": "Friday, March 14, 1879",
+      "entity": "P569"
+     },
+     {
+      "label": "Date of death",
+      "value": "Monday, April 18, 1955",
+      "entity": "P570"
+     },
+     {
+      "label": "Country of citizenship",
+      "value": "United States, Switzerland, Germany, Weimar Republic, Kingdom of Württemberg, statelessness, Cisleithania",
+      "entity": "P27"
+     }
+    ]
+   }
+  ],
+  "suggestions": [
+   "hans albert einstein",
+   "albert einstein facts",
+   "mileva marić",
+   "nikola tesla",
+   "albert einstein college of medicine",
+   "albert einstein inventions",
+   "albert einstein wikipedia",
+   "albert einstein death",
+   "albert einstein quotes",
+   "albert einstein biography",
+   "albert einstein là ai",
+   "albert einstein iq"
+  ],
+  "unresponsive_engines": [
+   [
+    "brave",
+    "too many requests"
+   ],
+   [
+    "searchmysite",
+    "access denied"
+   ],
+   [
+    "yep",
+    "HTTP error"
+   ]
+  ]
+ },
+ "answer": {
+  "query": "sha256 hello",
+  "results": [
+   {
+    "template": "default.html",
+    "title": "SHA256 hash for \"hello\" is ... - Md5Calc.com",
+    "content": "Here you can view hashes for \"hello\" string encoded with other popular algorithms.Since version 5.1.2 PHP contains function hash() that you can use to get sha256 hash from strings.",
+    "img_src": "",
+    "iframe_src": "",
+    "audio_src": "",
+    "thumbnail": "",
+    "publishedDate": null,
+    "pubdate": "",
+    "length": null,
+    "views": "",
+    "author": "",
+    "metadata": "",
+    "priority": "",
+    "engines": [
+     "duckduckgo",
+     "yandex",
+     "bing",
+     "google cse",
+     "qwant",
+     "yahoo"
+    ],
+    "open_group": false,
+    "close_group": false,
+    "score": 36.0,
+    "category": "general",
+    "url": "https://md5calc.com/hash/sha256/hello",
+    "engine": "google cse"
+   },
+   {
+    "template": "default.html",
+    "title": "What Is the SHA-256 Hash of \"hello\"? | KappaKit",
+    "content": "The SHA-256 hash of \"hello\" is 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824. This is a 64-character hexadecimal string representing 256 bits. Note that \"Hello\" (capitalized) produces a completely different hash due to SHA-256's avalanche effect, where even a single bit change in input completely changes the output.",
+    "img_src": "",
+    "iframe_src": "",
+    "audio_src": "",
+    "thumbnail": "",
+    "publishedDate": null,
+    "pubdate": "",
+    "length": null,
+    "views": "",
+    "author": "",
+    "metadata": "",
+    "priority": "",
+    "engines": [
+     "bing",
+     "duckduckgo",
+     "qwant",
+     "yahoo"
+    ],
+    "open_group": false,
+    "close_group": false,
+    "score": 8.0,
+    "category": "general",
+    "url": "https://kappakit.com/answers/sha256-hash-of-hello.html",
+    "engine": "yahoo"
+   }
+  ],
+  "answers": [
+   {
+    "url": null,
+    "engine": "plugin: hash_plugin",
+    "template": "answer/legacy.html",
+    "answer": "sha256 hash digest: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+   }
+  ],
+  "corrections": [],
+  "infoboxes": [],
+  "suggestions": [
+   "sha256 hello image",
+   "sha256 hello kitty",
+   "sha256 hello dolly",
+   "sha256 hello neighbor",
+   "sha256 hello gif",
+   "sha256 hello fresh",
+   "sha256 hello video",
+   "sha256 hello world"
+  ],
+  "unresponsive_engines": [
+   [
+    "brave",
+    "Suspended: too many requests"
+   ],
+   [
+    "searchmysite",
+    "Suspended: access denied"
+   ],
+   [
+    "yep",
+    "HTTP error"
+   ]
+  ]
+ },
+ "videos": {
+  "query": "sourdough starter tutorial",
+  "results": [
+   {
+    "url": "https://www.youtube.com/watch?v=-9Osn7JsP1Y",
+    "thumbnail": "https://th.bing.com/th/id/OVP.o_3shZ0MEfqHmUVabT01zwHgFo?w=354&h=199&c=7&rs=1&qlt=70&r=0&o=7&pid=2.1&rm=3",
+    "title": "Easy Sourdough Starter Guide: Just Flour & Water!",
+    "content": "Learn how to effortlessly create a perfect sourdough starter with just two ingredients! ⬇️⬇️⬇️⬇️ RECIPE BELOW ⬇️⬇️⬇️⬇️ 🖨 PRINT INSTRUCTIONS HERE: https://natashaskitchen.com/sourdough-starter-recipe/ 📖 ORDER MY COOKBOOK HERE: https://amzn.to/3PWqQIa ⭐️TOOLS, USED IN THIS VIDEO (affiliate): Digital ...",
+    "length": "08:03",
+    "template": "videos.html",
+    "engine": "bing videos",
+    "img_src": "",
+    "priority": "",
+    "engines": [
+     "bing videos",
+     "youtube",
+     "duckduckgo videos"
+    ],
+    "score": 6.136363636363637,
+    "category": "videos",
+    "publishedDate": null,
+    "iframe_src": null,
+    "author": "Natashas Kitchen"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=j5MNUfQu7L8",
+    "thumbnail": "https://th.bing.com/th/id/OVP.B2YHM_ZiXriPslHndaOz5wEsDh?w=354&h=199&c=7&rs=1&qlt=70&r=0&o=7&pid=2.1&rm=3",
+    "title": "Homemade Sourdough Starter | Super Easy!",
+    "content": "RECIPE: https://www.inthekitchenwithmatt.com/how-to-make-sourdough-starter-with-2-ingredients Today, I'm showing you how to make a sourdough starter at home, perfect for those starting their baking journey. This simple sourdough starter recipe is ideal for sourdough for beginners and will guide you through the process step-by-step. Follow along ...",
+    "length": "02:55",
+    "template": "videos.html",
+    "engine": "bing videos",
+    "img_src": "",
+    "priority": "",
+    "engines": [
+     "bing videos",
+     "duckduckgo videos"
+    ],
+    "score": 3.0,
+    "category": "videos",
+    "publishedDate": null,
+    "iframe_src": null
+   }
+  ],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "suggestions": [],
+  "unresponsive_engines": [
+   [
+    "bitchute",
+    "parsing error"
+   ],
+   [
+    "brave.videos",
+    "Suspended: too many requests"
+   ],
+   [
+    "google videos",
+    "access denied"
+   ],
+   [
+    "peertube",
+    "HTTP error"
+   ],
+   [
+    "rumble",
+    "parsing error"
+   ]
+  ]
+ },
+ "images": {
+  "query": "red panda",
+  "results": [
+   {
+    "template": "images.html",
+    "title": "Ailurus fulgens (Panda roux) - 128",
+    "url": "https://commons.wikimedia.org/wiki/File:Ailurus_fulgens_(Panda_roux)_-_128.jpg",
+    "content": "Thanks! Français : Ailurus fulgens (Panda roux) au parc de la Tête d'Or à Lyon, France. English: Ailurus fulgens (red panda) in the parc de la Tête d'Or in",
+    "img_src": "https://upload.wikimedia.org/wikipedia/commons/a/a7/Ailurus_fulgens_%28Panda_roux%29_-_128.jpg",
+    "thumbnail_src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a7/Ailurus_fulgens_%28Panda_roux%29_-_128.jpg/330px-Ailurus_fulgens_%28Panda_roux%29_-_128.jpg",
+    "resolution": "2464 x 1643",
+    "img_format": "image/jpeg",
+    "filesize": "3.86 MB",
+    "engine": "wikicommons.images",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "wikicommons.images"
+    ],
+    "score": 1.0,
+    "category": "images",
+    "publishedDate": null,
+    "iframe_src": null
+   },
+   {
+    "template": "images.html",
+    "title": "WARCRAFT | GUARDIANS OF THE DREAM",
+    "url": "https://www.artstation.com/artwork/LRDXYK",
+    "author": "bernardocristovao (Bernardo Cristovao)",
+    "img_src": "https://cdna.artstation.com/p/assets/covers/images/078/131/946/large/bernardo-cristovao-bernardo-cristovao-10-2-thumb.jpg?1721269439",
+    "thumbnail_src": "https://cdna.artstation.com/p/assets/covers/images/078/131/946/smaller_square/bernardo-cristovao-bernardo-cristovao-10-2-thumb.jpg?1721269439",
+    "engine": "artstation",
+    "content": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "artstation"
+    ],
+    "score": 1.0,
+    "category": "images",
+    "publishedDate": null,
+    "iframe_src": null
+   }
+  ],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "suggestions": [],
+  "unresponsive_engines": [
+   [
+    "brave.images",
+    "Suspended: too many requests"
+   ],
+   [
+    "duckduckgo images",
+    "access denied"
+   ]
+  ]
+ },
+ "packages": {
+  "query": "valkey",
+  "results": [
+   {
+    "url": "https://www.mankier.com/7/valkey",
+    "title": "valkey",
+    "content": "Valkey Documentation",
+    "engine": "mankier",
+    "template": "default.html",
+    "img_src": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "mankier"
+    ],
+    "score": 1.0,
+    "category": "it",
+    "publishedDate": null,
+    "iframe_src": null
+   },
+   {
+    "url": "https://stackoverflow.com/q/79795807",
+    "title": "self-host plane : Error: adapting config using caddyfile: /etc/caddy/Caddyfile:3: unrecognized global option: reverse_proxy",
+    "content": "[docker, self-hosting, caddy, caddyfile] Corentin K // score: 1",
+    "engine": "stackoverflow",
+    "template": "default.html",
+    "img_src": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "stackoverflow"
+    ],
+    "score": 1.0,
+    "category": "it",
+    "publishedDate": null,
+    "iframe_src": null
+   },
+   {
+    "template": "packages.html",
+    "url": "https://hub.docker.com/r/dhi/valkey",
+    "title": "Valkey",
+    "content": "Valkey is a high-performance key/value datastore that supports a variety of workloads such as caching, message queues, and can act as a primary database.",
+    "thumbnail": "https://djeqr6to3dedg.cloudfront.net/repo-logos/dhi/valkey/live/logo-1793967373430",
+    "package_name": "Valkey",
+    "maintainer": "dhi",
+    "publishedDate": "2026-11-06T06:17:33.565610+00:00",
+    "popularity": "1M+ pulls, 0 stars",
+    "tags": [
+     "amd64",
+     "arm64"
+    ],
+    "engine": "docker hub",
+    "img_src": "",
+    "priority": "",
+    "engines": [
+     "docker hub"
+    ],
+    "score": 1.0,
+    "category": "it",
+    "iframe_src": null,
+    "pubdate": "2026-11-06 06:17:33+0000"
+   },
+   {
+    "template": "packages.html",
+    "url": "https://github.com/dragonflydb/dragonfly",
+    "title": "dragonflydb/dragonfly",
+    "content": "C++ / A modern replacement for Redis and Memcached",
+    "thumbnail": "https://avatars.githubusercontent.com/u/104819355?v=4",
+    "package_name": "dragonfly",
+    "maintainer": "dragonflydb",
+    "publishedDate": "2026-11-06T13:05:56+00:00",
+    "tags": [
+     "cache",
+     "cpp",
+     "database",
+     "fibers",
+     "in-memory",
+     "in-memory-database",
+     "key-value",
+     "keydb",
+     "memcached",
+     "message-broker",
+     "multi-threading",
+     "nosql",
+     "redis",
+     "valkey",
+     "vector-search"
+    ],
+    "popularity": 31845,
+    "license_name": "Other",
+    "license_url": "https://spdx.org/licenses/NOASSERTION.html",
+    "homepage": "https://www.dragonflydb.io/",
+    "source_code_url": "https://github.com/dragonflydb/dragonfly.git",
+    "engine": "github",
+    "img_src": "",
+    "priority": "",
+    "engines": [
+     "github"
+    ],
+    "score": 1.0,
+    "category": "it",
+    "iframe_src": null,
+    "pubdate": "2026-11-06 13:05:56+0000"
+   }
+  ],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "suggestions": [],
+  "unresponsive_engines": []
+ },
+ "papers": {
+  "query": "transformer attention",
+  "results": [
+   {
+    "title": "Dilated Neighborhood Attention Transformer",
+    "img_src": "",
+    "iframe_src": "",
+    "audio_src": "",
+    "thumbnail": "",
+    "publishedDate": "2022-09-29T17:57:08",
+    "pubdate": "2022-09-29 17:57:08",
+    "length": null,
+    "views": "",
+    "author": "",
+    "metadata": "",
+    "priority": "",
+    "engines": [
+     "arxiv"
+    ],
+    "open_group": false,
+    "close_group": false,
+    "score": 1.0,
+    "category": "science",
+    "template": "paper.html",
+    "content": "Transformers are quickly becoming one of the most heavily applied deep learning architectures across modalities, domains, and tasks. In vision, on top of ongoing efforts into plain transformers, hierarchical transformers have also gained significant attention, thanks to their performance and easy integration into existing frameworks. These models typically employ localized attention mechanisms, such as the sliding-window Neighborhood Attention (NA) or Swin Transformer's Shifted Window Self Attention. While effective at reducing self attention's quadratic complexity, local attention weakens two of the most desirable properties of self attention: long range inter-dependency modeling, and global receptive field. In this paper, we introduce Dilated Neighborhood Attention (DiNA), a natural, flexible and efficient extension to NA that can capture more global context and expand receptive fields exponentially at no additional cost. NA's local attention and DiNA's sparse global attention complement each other, and therefore we introduce Dilated Neighborhood Attention Transformer (DiNAT), a new hierarchical vision transformer built upon both. DiNAT variants enjoy significant improvements …",
+    "url": "http://arxiv.org/abs/2209.15001v3",
+    "engine": "arxiv",
+    "date_of_publication": {
+     "datetime": "2022-09-29T17:57:08"
+    },
+    "comments": "Large results were updated according to the new checkpoint. We open-source our project at https://github.com/SHI-Labs/Neighborhood-Attention-Transformer",
+    "tags": [
+     "cs.CV",
+     "cs.AI",
+     "cs.LG"
+    ],
+    "type": "",
+    "authors": [
+     "Ali Hassani",
+     "Humphrey Shi"
+    ],
+    "editor": "",
+    "publisher": "",
+    "journal": "",
+    "volume": "",
+    "pages": "",
+    "number": "",
+    "doi": "",
+    "issn": [],
+    "isbn": [],
+    "pdf_url": "https://arxiv.org/pdf/2209.15001v3",
+    "html_url": ""
+   },
+   {
+    "title": "Unlocking biological insight from single-cell data with an interpretable dual-stream foundation model.",
+    "img_src": "",
+    "iframe_src": "",
+    "audio_src": "",
+    "thumbnail": "",
+    "publishedDate": "2026-07-06T00:00:00",
+    "pubdate": "2026-07-06 00:00:00",
+    "length": null,
+    "views": "",
+    "author": "",
+    "metadata": "",
+    "priority": "",
+    "engines": [
+     "pubmed"
+    ],
+    "open_group": false,
+    "close_group": false,
+    "score": 1.0,
+    "category": "science",
+    "template": "paper.html",
+    "content": "Deep learning foundation models are revolutionizing single-cell biology, yet learning holistic and discriminative representations from complex, high-dimensional data remains a central challenge. Although transformer-based single-cell language models have shown significant progress, they typically rely on a single input-encoding scheme, a practice that results in the loss of critical gene expression information and hinders the effective learning of global cellular representations. To address these challenges, we propose scDMC, an innovative single-cell pre-training framework.",
+    "url": "https://www.ncbi.nlm.nih.gov/pubmed/42989370",
+    "engine": "pubmed",
+    "date_of_publication": {
+     "datetime": "2026-07-06T00:00:00"
+    },
+    "comments": "",
+    "tags": [],
+    "type": "",
+    "authors": [
+     "Honglie Guo",
+     "Qinghang Cui",
+     "Xiang Zhang",
+     "Chaowei Chen",
+     "Weihua Zheng",
+     "Changfeng Cai",
+     "Xinyi Wang",
+     "Shunfang Wang"
+    ],
+    "editor": "",
+    "publisher": "",
+    "journal": "Genome biology",
+    "volume": "",
+    "pages": "",
+    "number": "",
+    "doi": "10.1186/s13059-026-04193-w",
+    "issn": [
+     "1474-760X"
+    ],
+    "isbn": [],
+    "pdf_url": "",
+    "html_url": ""
+   },
+   {
+    "url": "https://oadoi.org/10.60893/figshare.aip.c.7967051",
+    "title": "Easy attention: A simple attention mechanism for temporal predictions with transformers",
+    "content": "To improve the robustness of transformer neural networks used fortemporal-dynamics prediction of chaotic systems, we propose a novel attentionmechanism called easy attention which we demonstrate in time-seriesreconstruction and prediction. While the standard self attention only makes useof the inner product of queries and keys, it is demonstrated that the keys,queries and softmax are not necessary for obtaining the attention scorerequired to capture long-term dependencies in temporal sequences. Through thesingular-value decomposition (SVD) on the softmax attention score, we furtherobserve that self attention compresses the contributions from both queries andkeys in the space spanned by the attention score. Therefore, our proposedeasy-attention method directly treats the attention scores as learnableparameters. This approach produces excellent results when reconstructing andpredicting the temporal dynamics of chaotic systems exhibiting more robustnessand less complexity than self attention or the widely-used long short-termmemory (LSTM) network. We show the improved performance of the easy-attentionmethod in the Lorenz system, a turbulence shear flow and a model of a nuclearreactor.",
+    "engine": "openairedatasets",
+    "template": "default.html",
+    "img_src": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "openairedatasets"
+    ],
+    "score": 1.0,
+    "category": "science",
+    "publishedDate": null,
+    "iframe_src": null,
+    "doi": "10.60893/figshare.aip.c.7967051"
+   },
+   {
+    "url": "http://hdl.handle.net/20.500.11850/709078",
+    "title": "A Transformer with Stack Attention",
+    "content": "Findings of the Association for Computational Linguistics: NAACL 2024",
+    "engine": "openairepublications",
+    "template": "default.html",
+    "img_src": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "openairepublications"
+    ],
+    "score": 1.0,
+    "category": "science",
+    "publishedDate": null,
+    "iframe_src": null
+   }
+  ],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "suggestions": [],
+  "unresponsive_engines": [
+   [
+    "google scholar",
+    "unexpected crash"
+   ]
+  ]
+ },
+ "torrents": {
+  "query": "ubuntu iso",
+  "results": [
+   {
+    "url": "https://thepiratebay.org/description.php?id=76519964",
+    "title": "ubuntu-24.04.1-desktop-amd64.iso",
+    "seed": "51",
+    "leech": "8",
+    "magnetlink": "magnet:?xt=urn:btih:4A3F5E08BCEF825718EDA30637230585E3330599&dn=ubuntu-24.04.1-desktop-amd64.iso&tr=udp://tracker.coppersurfer.tk:6969/announce&tr=udp://9.rarbg.to:2920/announce&tr=udp://tracker.opentrackr.org:1337&tr=udp://tracker.internetwarriors.net:1337/announce&tr=udp://tracker.leechers-paradise.org:6969/announce&tr=udp://tracker.coppersurfer.tk:6969/announce&tr=udp://tracker.pirateparty.gr:6969/announce&tr=udp://tracker.cyberia.is:6969/announce",
+    "template": "torrent.html",
+    "publishedDate": "2024-09-08T18:18:48",
+    "filesize": "5.78 GB",
+    "engine": "piratebay",
+    "content": "",
+    "img_src": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "piratebay"
+    ],
+    "score": 1.0,
+    "category": "files",
+    "iframe_src": null,
+    "pubdate": "2024-09-08 18:18:48"
+   },
+   {
+    "url": "https://bt4gprx.com/magnet/4V41OiEjjIne5XGavN0bVXGdxWrG0SEXA",
+    "title": "ubuntu.iso",
+    "magnetlink": "magnet:?xt=urn:btih:40c2c0f7388e7b2164f5f4c523cd01ff773d95a4&dn=ubuntu.iso&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.tracker.cl%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ducks.party%3A1984%2Fannounce&tr=udp%3A%2F%2Ftracker.tryhackx.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.nyaa.vc%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=http%3A%2F%2Ftracker.dler.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker2.dler.org%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.gmi.gd%3A6969%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=https%3A%2F%2Ftracker.bt4g.com%3A443%2Fannounce",
+    "seed": "N/A",
+    "leech": "N/A",
+    "filesize": "5.00MB",
+    "publishedDate": "2026-09-29T05:10:25+00:00",
+    "template": "torrent.html",
+    "engine": "bt4g",
+    "content": "",
+    "img_src": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "bt4g"
+    ],
+    "score": 1.0,
+    "category": "files",
+    "iframe_src": null,
+    "pubdate": "2026-09-29 05:10:25+0000"
+   },
+   {
+    "title": "Chronology of Kashmir History Reconstructed",
+    "content": "English This book 'Chronology of Kashmir History Reconstructed' was writtrn by 'Jagadguru Sankaracharya Sri Advayananda Sankarabharati Swamy'- 'Peethadhipati",
+    "img_src": "",
+    "iframe_src": "",
+    "audio_src": "",
+    "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6a/Chronology_of_Kashmir_History_Reconstructed.pdf/page1-250px-Chronology_of_Kashmir_History_Reconstructed.pdf.jpg",
+    "publishedDate": null,
+    "pubdate": "",
+    "length": null,
+    "views": "",
+    "metadata": "",
+    "priority": "",
+    "engines": [
+     "wikicommons.files"
+    ],
+    "open_group": false,
+    "close_group": false,
+    "score": 1.0,
+    "category": "files",
+    "template": "file.html",
+    "author": "",
+    "url": "https://commons.wikimedia.org/wiki/File:Chronology_of_Kashmir_History_Reconstructed.pdf",
+    "engine": "wikicommons.files",
+    "filename": "Chronology_of_Kashmir_History_Reconstructed.pdf?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "size": "26.10 MB",
+    "time": "",
+    "mimetype": "application/pdf",
+    "abstract": "",
+    "embedded": "https://upload.wikimedia.org/wikipedia/commons/6/6a/Chronology_of_Kashmir_History_Reconstructed.pdf?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "mtype": "application",
+    "subtype": "pdf"
+   },
+   {
+    "title": "Chronology of Nepal History Reconstructed",
+    "content": "English This book named Chronology of Nepal History Reconstructed was written by Kota Venkatachalam garu in 1953. This book is a part of his Arya Vijnana",
+    "img_src": "",
+    "iframe_src": "",
+    "audio_src": "",
+    "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/17/Chronology_of_Nepal_History_Reconstructed.pdf/page1-120px-Chronology_of_Nepal_History_Reconstructed.pdf.jpg",
+    "publishedDate": null,
+    "pubdate": "",
+    "length": null,
+    "views": "",
+    "metadata": "",
+    "priority": "",
+    "engines": [
+     "wikicommons.files"
+    ],
+    "open_group": false,
+    "close_group": false,
+    "score": 0.5,
+    "category": "files",
+    "template": "file.html",
+    "author": "",
+    "url": "https://commons.wikimedia.org/wiki/File:Chronology_of_Nepal_History_Reconstructed.pdf",
+    "engine": "wikicommons.files",
+    "filename": "Chronology_of_Nepal_History_Reconstructed.pdf?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "size": "6.13 MB",
+    "time": "",
+    "mimetype": "application/pdf",
+    "abstract": "",
+    "embedded": "https://upload.wikimedia.org/wikipedia/commons/1/17/Chronology_of_Nepal_History_Reconstructed.pdf?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "mtype": "application",
+    "subtype": "pdf"
+   }
+  ],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "suggestions": [],
+  "unresponsive_engines": [
+   [
+    "kickass",
+    "access denied"
+   ]
+  ]
+ },
+ "map": {
+  "query": "denver",
+  "results": [
+   {
+    "template": "map.html",
+    "title": "Denver, Colorado, United States",
+    "content": "",
+    "longitude": -104.984862,
+    "latitude": 39.7392364,
+    "boundingbox": [
+     39.6143008,
+     39.9142087,
+     -105.1098845,
+     -104.5996997
+    ],
+    "geojson": {
+     "type": "Point",
+     "coordinates": [
+      -104.984862,
+      39.7392364
+     ]
+    },
+    "address": null,
+    "osm": {
+     "type": "relation",
+     "id": 1411339
+    },
+    "url": "https://openstreetmap.org/relation/1411339",
+    "engine": "photon",
+    "img_src": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "openstreetmap",
+     "photon"
+    ],
+    "score": 4.0,
+    "category": "map",
+    "publishedDate": null,
+    "iframe_src": null,
+    "address_label": "address",
+    "links": [
+     {
+      "label": "official website",
+      "url": "https://www.denvergov.org/",
+      "url_label": "https://www.denvergov.org/"
+     },
+     {
+      "label": "Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Denver",
+      "url_label": "Denver (en)"
+     },
+     {
+      "label": "Wikidata",
+      "url": "https://wikidata.org/wiki/Q16554",
+      "url_label": "Denver"
+     }
+    ],
+    "data": [],
+    "type": "administrative territorial entity",
+    "type_icon": null
+   },
+   {
+    "template": "map.html",
+    "title": "Denver, Bremer County, Iowa, 50622, United States",
+    "content": "",
+    "longitude": -92.3372158,
+    "latitude": 42.6713752,
+    "boundingbox": [
+     42.6567999,
+     42.6803073,
+     -92.3471364,
+     -92.317541
+    ],
+    "geojson": {
+     "type": "Point",
+     "coordinates": [
+      -92.3372158,
+      42.6713752
+     ]
+    },
+    "address": null,
+    "osm": {
+     "type": "relation",
+     "id": 128512
+    },
+    "url": "https://openstreetmap.org/relation/128512",
+    "engine": "photon",
+    "img_src": "",
+    "thumbnail": "",
+    "priority": "",
+    "engines": [
+     "openstreetmap",
+     "photon"
+    ],
+    "score": 2.0,
+    "category": "map",
+    "publishedDate": null,
+    "iframe_src": null,
+    "address_label": "address",
+    "links": [
+     {
+      "label": "website",
+      "url": "http://www.cityofdenveriowa.com/",
+      "url_label": "http://www.cityofdenveriowa.com/"
+     },
+     {
+      "label": "Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Denver, Iowa",
+      "url_label": "Denver, Iowa (en)"
+     },
+     {
+      "label": "Wikidata",
+      "url": "https://wikidata.org/wiki/Q1933882",
+      "url_label": "Denver"
+     }
+    ],
+    "data": [],
+    "type": "administrative territorial entity",
+    "type_icon": null
+   }
+  ],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "suggestions": [],
+  "unresponsive_engines": []
+ }
+}

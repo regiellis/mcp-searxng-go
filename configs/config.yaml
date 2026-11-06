@@ -1,0 +1,95 @@
+searxng:
+  base_url: "http://127.0.0.1:7777"
+  # Client-side wait for SearXNG's reply, not a load control: SearXNG fans out
+  # to upstream engines either way. Cold queries can take >10s, and the only
+  # caller is an agent that can afford to wait.
+  timeout: 20s
+  default_language: "all"
+  default_time_range: ""
+  max_limit: 10
+
+# Optional Brave Search API merge. When enabled and an API key is present, Brave
+# results are interleaved with SearXNG results (de-duplicated by URL, capped at
+# searxng.max_limit). If Brave is unreachable, SearXNG results are returned as-is.
+# The api_key is sourced from the BRAVE_SEARCH_API environment variable / .env
+# file rather than this file, so the secret is never committed.
+brave:
+  enabled: true
+  base_url: "https://api.search.brave.com/res/v1"
+  timeout: 8s
+
+# Media tools (download_video, transcode_media, download_subtitles, probe_media)
+# shell out to yt-dlp, ffmpeg, and ffprobe, which must be installed on the host.
+# All output is confined to output_dir (relative paths resolve against the
+# process working directory). In HTTP mode, produced files are also served for
+# direct download at /files/<path-inside-output_dir>, and media tool responses
+# include a download_url pointing there (based on server.public_base_url when
+# set, otherwise the origin the request arrived on).
+media:
+  enabled: true
+  output_dir: "media"
+  yt_dlp_path: "yt-dlp"
+  ffmpeg_path: "ffmpeg"
+  ffprobe_path: "ffprobe"
+  timeout: 10m
+
+# Optional transcript cleaning (clean_subtitles tool). Sends a downloaded
+# subtitle/transcript through a DeepSeek chat model that strips intros, outros,
+# like/subscribe asks, sponsor reads, ads, and caption filler while keeping the
+# substantive on-topic content (not a brief summary). The api_key is sourced from
+# the DEEPSEEK_API_KEY environment variable / .env file, never this file; the tool
+# stays disabled until the key is present. max_input_chars bounds each request so
+# long transcripts are processed in order across multiple calls.
+llm:
+  enabled: true
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-v4-flash"
+  timeout: 5m
+  max_input_chars: 48000
+
+server:
+  mode: "http"
+  address: "0.0.0.0:7778"
+  public_base_url: ""
+  read_timeout: 15s
+  write_timeout: 15s
+  log_level: "info"
+
+fetch:
+  timeout: 15s
+  max_body_size: 2MB
+  max_pdf_bytes: 16MB # larger cap for PDFs, which must be read whole to parse
+  max_text_chars: 12000
+  max_redirects: 4
+  allowed_schemes:
+    - http
+    - https
+
+cache:
+  enabled: true
+  ttl_search: 2m
+  ttl_url_read: 5m
+  max_entries: 256
+
+security:
+  block_private_networks: false
+  allow_domains: []
+  deny_domains: []
+
+# Persistent storage for research sessions (save_research/get_research/
+# list_research) and exported reports. All files stay inside dir.
+storage:
+  enabled: true
+  dir: "data"
+
+# OCR for scanned/image-only PDFs (ocr_pdf tool). Shells out to tesseract and
+# pdftoppm (poppler-utils), which must be installed on the host; when absent the
+# tool is advertised but reports OCR is unavailable.
+ocr:
+  enabled: true
+  tesseract_path: "tesseract"
+  pdftoppm_path: "pdftoppm"
+  languages: "eng"
+  dpi: 200
+  max_pages: 10
+  timeout: 2m
